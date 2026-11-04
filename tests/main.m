@@ -8,6 +8,8 @@
 
 void MRRunMediaItemTests(void);
 void MRRunDateTests(void);
+void MRRunURLBuilderTests(void);
+void MRRunErrorTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -16,6 +18,12 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"date");
         MRRunDateTests();
+
+        MRTestBeginSuite(@"url builder");
+        MRRunURLBuilderTests();
+
+        MRTestBeginSuite(@"error");
+        MRRunErrorTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {
