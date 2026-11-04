@@ -2,7 +2,7 @@ Package: com.marquee.app
 Name: Marquee
 Version: 1.0
 Architecture: iphoneos-arm
-Description: A standalone SimKL client for iOS 6.
+Description: A standalone Simkl client for iOS 6.
 Maintainer: Marquee
 Author: Marquee
 Section: Entertainment
