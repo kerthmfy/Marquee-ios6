@@ -206,6 +206,12 @@ static const CGFloat MRForYouCardWidth = 100.0;
         contentWidth = CGRectGetWidth(self.contentView.bounds);
     }
     self.scrollView.contentSize = CGSizeMake(contentWidth, MRForYouRowHeight);
+    self.scrollView.contentOffset = CGPointZero;
+}
+
+- (void)prepareForReuse {
+    [super prepareForReuse];
+    self.scrollView.contentOffset = CGPointZero;
 }
 
 - (void)cancelLoading {
