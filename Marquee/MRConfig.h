@@ -1,4 +1,4 @@
-#define MR_SIMKL_CLIENT_ID @"REPLACE_WITH_V2_CLIENT_ID"
+#define MR_SIMKL_CLIENT_ID @"f4df3848ae51e3b59acf10121823adf4df045d56ae34313ac8dd9117a5d58c00"
 #define MR_APP_NAME @"marquee"
 #define MR_APP_VERSION @"1.0"
 #define MR_USER_AGENT @"Marquee/1.0 (iOS 6)"
