@@ -84,6 +84,93 @@ BOOL MRRunUntil(BOOL (^condition)(void), NSTimeInterval timeout) {
     return condition();
 }
 
+@implementation MRFakeClock {
+    NSMutableArray *_scheduled;
+    NSDate *_now;
+    NSUInteger _sequence;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _now = [NSDate dateWithTimeIntervalSince1970:1793774400.0]; // fixed, no wall clock
+        _scheduled = [NSMutableArray array];
+        _sequence = 0;
+    }
+    return self;
+}
+
+- (NSDate *)now {
+    @synchronized(self) {
+        return _now;
+    }
+}
+
+- (void)after:(NSTimeInterval)delay perform:(void (^)(void))block {
+    if (block == nil) {
+        return;
+    }
+    if (delay < 0.0) {
+        delay = 0.0;
+    }
+    @synchronized(self) {
+        NSDictionary *entry = @{
+            @"fireDate": [_now dateByAddingTimeInterval:delay],
+            @"sequence": @(_sequence),
+            @"block": [block copy]
+        };
+        _sequence += 1;
+        [_scheduled addObject:entry];
+    }
+}
+
+- (void)advanceBy:(NSTimeInterval)seconds {
+    if (seconds < 0.0) {
+        seconds = 0.0;
+    }
+
+    @synchronized(self) {
+        _now = [_now dateByAddingTimeInterval:seconds];
+    }
+
+    NSUInteger guard = 0;
+    while (guard < 100000) {
+        guard += 1;
+
+        NSDictionary *due = nil;
+        @synchronized(self) {
+            for (NSDictionary *entry in _scheduled) {
+                NSDate *fireDate = [entry objectForKey:@"fireDate"];
+                if ([fireDate compare:_now] != NSOrderedDescending) {
+                    if (due == nil ||
+                        [fireDate compare:[due objectForKey:@"fireDate"]] == NSOrderedAscending ||
+                        ([fireDate compare:[due objectForKey:@"fireDate"]] == NSOrderedSame &&
+                         [[entry objectForKey:@"sequence"] unsignedIntegerValue] <
+                         [[due objectForKey:@"sequence"] unsignedIntegerValue])) {
+                        due = entry;
+                    }
+                }
+            }
+            if (due != nil) {
+                [_scheduled removeObject:due];
+            }
+        }
+
+        if (due == nil) {
+            break;
+        }
+
+        @autoreleasepool {
+            void (^block)(void) = [due objectForKey:@"block"];
+            if (block != nil) {
+                block();
+            }
+        }
+    }
+}
+
+@end
+
 NSDictionary *MRFixture(NSString *name) {
     NSString *file = name;
     if (![[file pathExtension] isEqualToString:@"json"]) {

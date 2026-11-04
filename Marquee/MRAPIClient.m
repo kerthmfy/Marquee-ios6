@@ -1,0 +1,497 @@
+//
+//  MRAPIClient.m
+//  Marquee
+//
+
+#import "MRAPIClient.h"
+#import "MRClock.h"
+#import "MRConfig.h"
+#import "MRDiagnostics.h"
+#import "MRError.h"
+#import "MRHTTPClient.h"
+#import "MRHTTPRequest.h"
+#import "MRHTTPResponse.h"
+#import "MRQuotaTracker.h"
+#import "MRResponseCache.h"
+#import "MRTokenProviding.h"
+#import "MRURLBuilder.h"
+
+static const NSTimeInterval MRPublicCacheMaxAge = 24.0 * 60.0 * 60.0;
+static const NSTimeInterval MRPublicCacheStaleMaxAge = 10.0 * 365.0 * 24.0 * 60.0 * 60.0;
+static const NSInteger MRMaximumServerRetries = 5;
+static const NSInteger MRMaximumBurstRetries = 2;
+
+static NSString *MRHeaderValue(NSDictionary *headers, NSString *name) {
+    if (![headers isKindOfClass:[NSDictionary class]]) {
+        return nil;
+    }
+    for (id key in headers) {
+        if ([key isKindOfClass:[NSString class]] &&
+            [(NSString *)key caseInsensitiveCompare:name] == NSOrderedSame) {
+            id value = [headers objectForKey:key];
+            if ([value isKindOfClass:[NSString class]]) {
+                return value;
+            }
+            if (value != nil) {
+                return [value description];
+            }
+        }
+    }
+    return nil;
+}
+
+static BOOL MRHeadersCarryQuota(NSDictionary *headers) {
+    if (![headers isKindOfClass:[NSDictionary class]]) {
+        return NO;
+    }
+    for (id key in headers) {
+        if (![key isKindOfClass:[NSString class]]) {
+            continue;
+        }
+        if ([(NSString *)key caseInsensitiveCompare:@"X-RateLimit-Limit"] == NSOrderedSame ||
+            [(NSString *)key caseInsensitiveCompare:@"X-RateLimit-Remaining"] == NSOrderedSame) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static void MRDeliverOnMain(void (^block)(void)) {
+    if (block == nil) {
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), block);
+}
+
+@class MRAPIClientCall;
+
+@interface MRAPIClient ()
+@property (nonatomic, strong) id<MRHTTPClient> httpClient;
+@property (nonatomic, strong) id<MRTokenProviding> tokenProvider;
+@property (nonatomic, strong) MRResponseCache *responseCache;
+@property (nonatomic, strong) MRQuotaTracker *quotaTracker;
+@property (nonatomic, strong) MRDiagnostics *diagnostics;
+@property (nonatomic, strong) id<MRClock> clock;
+
+- (void)updateQuotaFromResponse:(MRHTTPResponse *)response kind:(MRErrorKind)kind;
+@end
+
+@interface MRAPIClientCall : NSObject <MRHTTPTask>
+@property (nonatomic, weak) MRAPIClient *client;
+@property (nonatomic, strong) MRHTTPRequest *request;
+@property (nonatomic, copy) NSString *cacheKey;
+@property (nonatomic, assign) Class expectedClass;
+@property (nonatomic, copy) void (^completion)(id json, NSError *error);
+
+- (instancetype)initWithClient:(MRAPIClient *)client
+                       request:(MRHTTPRequest *)request
+                      cacheKey:(NSString *)cacheKey
+                 expectedClass:(Class)expectedClass
+                    completion:(void (^)(id json, NSError *error))completion;
+- (void)start;
+@end
+
+@implementation MRAPIClientCall {
+    NSInteger _serverRetries;
+    NSInteger _burstRetries;
+    BOOL _finished;
+    BOOL _cancelled;
+    BOOL _responseHandled;
+    id<MRHTTPTask> _currentTask;
+}
+
+- (instancetype)initWithClient:(MRAPIClient *)client
+                       request:(MRHTTPRequest *)request
+                      cacheKey:(NSString *)cacheKey
+                 expectedClass:(Class)expectedClass
+                    completion:(void (^)(id json, NSError *error))completion {
+    self = [super init];
+    if (self) {
+        _client = client;
+        _request = request;
+        _cacheKey = [cacheKey copy];
+        _expectedClass = expectedClass;
+        _completion = [completion copy];
+        _serverRetries = 0;
+        _burstRetries = 0;
+    }
+    return self;
+}
+
+- (void)start {
+    [self send];
+}
+
+- (void)send {
+    MRAPIClient *client = self.client;
+    if (client == nil || client.httpClient == nil) {
+        [self finishWithJSON:nil error:[MRError errorWithKind:MRErrorKindUnknown] response:nil];
+        return;
+    }
+
+    @synchronized(self) {
+        if (_finished || _cancelled) {
+            return;
+        }
+        _responseHandled = NO;
+    }
+
+    MRHTTPRequest *request = self.request;
+    id<MRHTTPTask> task = [client.httpClient sendRequest:request
+                                              completion:^(MRHTTPResponse *response) {
+        [self handleResponse:response];
+    }];
+
+    @synchronized(self) {
+        if (!_responseHandled && !_finished && !_cancelled) {
+            _currentTask = task;
+        }
+    }
+}
+
+- (void)handleResponse:(MRHTTPResponse *)response {
+    @synchronized(self) {
+        if (_finished || _cancelled) {
+            return;
+        }
+        _responseHandled = YES;
+        _currentTask = nil;
+    }
+
+    if (response == nil) {
+        [self finishWithJSON:nil
+                       error:[MRError errorWithKind:MRErrorKindUnknown]
+                    response:nil];
+        return;
+    }
+
+    MRErrorKind kind = MRErrorKindUnknown;
+    if (response.transportError != nil) {
+        kind = [MRError kindForTransportError:response.transportError];
+    } else {
+        kind = [MRError kindForStatusCode:response.statusCode
+                                     body:response.data
+                                  headers:response.headers];
+    }
+
+    [self.client updateQuotaFromResponse:response kind:kind];
+
+    if (response.transportError == nil && response.statusCode == 304) {
+        [self handleNotModified:response];
+        return;
+    }
+
+    if (response.transportError == nil &&
+        response.statusCode >= 200 && response.statusCode <= 299) {
+        [self handleSuccess:response];
+        return;
+    }
+
+    NSError *error = [MRError errorForStatusCode:response.statusCode
+                                           body:response.data
+                                        headers:response.headers
+                                 transportError:response.transportError];
+
+    if ([self shouldRetryKind:kind]) {
+        return;
+    }
+
+    [self finishWithJSON:nil error:error response:response];
+}
+
+- (void)handleSuccess:(MRHTTPResponse *)response {
+    id object = nil;
+    if (response.data.length > 0) {
+        object = [NSJSONSerialization JSONObjectWithData:response.data options:0 error:NULL];
+    }
+
+    if (object == nil ||
+        (self.expectedClass != Nil && ![object isKindOfClass:self.expectedClass])) {
+        [self finishWithJSON:nil
+                       error:[MRError errorWithKind:MRErrorKindParse]
+                    response:response];
+        return;
+    }
+
+    [self.client.responseCache storeBody:object
+                                  forURL:self.cacheKey
+                            lastModified:MRHeaderValue(response.headers, @"Last-Modified")];
+
+    [self finishWithJSON:object error:nil response:response];
+}
+
+- (void)handleNotModified:(MRHTTPResponse *)response {
+    MRResponseCache *cache = self.client.responseCache;
+    id body = [cache cachedBodyForURL:self.cacheKey maxAge:MRPublicCacheStaleMaxAge];
+
+    if (body == nil ||
+        (self.expectedClass != Nil && ![body isKindOfClass:self.expectedClass])) {
+        [self finishWithJSON:nil
+                       error:[MRError errorWithKind:MRErrorKindParse]
+                    response:response];
+        return;
+    }
+
+    NSString *lastModified = MRHeaderValue(response.headers, @"Last-Modified");
+    if (lastModified.length == 0) {
+        lastModified = [cache lastModifiedForURL:self.cacheKey];
+    }
+    [cache storeBody:body forURL:self.cacheKey lastModified:lastModified];
+
+    [self finishWithJSON:body error:nil response:response];
+}
+
+- (BOOL)shouldRetryKind:(MRErrorKind)kind {
+    if (self.client.clock == nil) {
+        return NO;
+    }
+
+    if (kind == MRErrorKindServer) {
+        if (_serverRetries >= MRMaximumServerRetries) {
+            return NO;
+        }
+        NSTimeInterval delay = (NSTimeInterval)(1 << _serverRetries);
+        _serverRetries += 1;
+        [self scheduleRetryAfter:delay];
+        return YES;
+    }
+
+    if (kind == MRErrorKindRateLimitedBurst) {
+        if (_burstRetries >= MRMaximumBurstRetries) {
+            return NO;
+        }
+        _burstRetries += 1;
+        [self scheduleRetryAfter:1.0];
+        return YES;
+    }
+
+    return NO;
+}
+
+- (void)scheduleRetryAfter:(NSTimeInterval)delay {
+    MRAPIClientCall *call = self;
+    [self.client.clock after:delay perform:^{
+        @synchronized(call) {
+            if (call->_finished || call->_cancelled) {
+                return;
+            }
+        }
+        [call send];
+    }];
+}
+
+- (void)finishWithJSON:(id)json error:(NSError *)error response:(MRHTTPResponse *)response {
+    @synchronized(self) {
+        if (_finished) {
+            return;
+        }
+        _finished = YES;
+        _currentTask = nil;
+    }
+
+    if (error != nil) {
+        [self.client.diagnostics recordError:error request:self.request response:response];
+    }
+
+    void (^completion)(id, NSError *) = self.completion;
+    if (completion != nil) {
+        MRDeliverOnMain(^{
+            completion(json, error);
+        });
+    }
+}
+
+#pragma mark - MRHTTPTask
+
+- (void)cancel {
+    id<MRHTTPTask> task = nil;
+    @synchronized(self) {
+        if (_finished) {
+            return;
+        }
+        _cancelled = YES;
+        _finished = YES;
+        task = _currentTask;
+        _currentTask = nil;
+    }
+
+    [task cancel];
+
+    void (^completion)(id, NSError *) = self.completion;
+    if (completion != nil) {
+        MRDeliverOnMain(^{
+            completion(nil, [MRError errorWithKind:MRErrorKindCancelled]);
+        });
+    }
+}
+
+@end
+
+@implementation MRAPIClient
+
+- (instancetype)initWithHTTPClient:(id<MRHTTPClient>)httpClient
+                     tokenProvider:(id<MRTokenProviding>)tokenProvider
+                     responseCache:(MRResponseCache *)responseCache
+                      quotaTracker:(MRQuotaTracker *)quotaTracker
+                       diagnostics:(MRDiagnostics *)diagnostics
+                             clock:(id<MRClock>)clock {
+    self = [super init];
+    if (self) {
+        _httpClient = httpClient;
+        _tokenProvider = tokenProvider;
+        _responseCache = responseCache;
+        _quotaTracker = quotaTracker;
+        _diagnostics = diagnostics;
+        _clock = clock;
+    }
+    return self;
+}
+
+- (void)updateQuotaFromResponse:(MRHTTPResponse *)response kind:(MRErrorKind)kind {
+    if (self.quotaTracker == nil || response == nil) {
+        return;
+    }
+
+    // A burst 429's Retry-After is not the daily reset. When such a response
+    // also carries quota headers, pass those through but strip Retry-After.
+    if (kind == MRErrorKindRateLimitedBurst) {
+        if (!MRHeadersCarryQuota(response.headers)) {
+            return;
+        }
+        NSMutableDictionary *filtered = [NSMutableDictionary dictionary];
+        for (id key in response.headers) {
+            if ([key isKindOfClass:[NSString class]] &&
+                [(NSString *)key caseInsensitiveCompare:@"Retry-After"] == NSOrderedSame) {
+                continue;
+            }
+            [filtered setObject:[response.headers objectForKey:key] forKey:key];
+        }
+        [self.quotaTracker updateFromHeaders:filtered];
+        return;
+    }
+
+    if (kind == MRErrorKindDailyLimit || MRHeadersCarryQuota(response.headers)) {
+        [self.quotaTracker updateFromHeaders:response.headers];
+    }
+}
+
+- (id<MRHTTPTask>)fetchURL:(NSString *)URL
+             expectedClass:(Class)expectedClass
+                completion:(void (^)(id json, NSError *error))completion {
+    if (URL.length == 0) {
+        MRDeliverOnMain(^{
+            if (completion != nil) {
+                completion(nil, [MRError errorWithKind:MRErrorKindUnknown]);
+            }
+        });
+        return nil;
+    }
+
+    id cached = [self.responseCache cachedBodyForURL:URL maxAge:MRPublicCacheMaxAge];
+    if (cached != nil && expectedClass != Nil && ![cached isKindOfClass:expectedClass]) {
+        cached = nil;
+    }
+    if (cached != nil) {
+        MRDeliverOnMain(^{
+            if (completion != nil) {
+                completion(cached, nil);
+            }
+        });
+        return nil;
+    }
+
+    MRHTTPRequest *request = [[MRHTTPRequest alloc] initWithURL:URL method:@"GET"];
+    request.queueKind = MRHTTPQueueKindCatalog;
+
+    NSMutableDictionary *headers = [NSMutableDictionary dictionary];
+    [headers setObject:MR_USER_AGENT forKey:@"User-Agent"];
+    NSString *lastModified = [self.responseCache lastModifiedForURL:URL];
+    if (lastModified.length > 0) {
+        [headers setObject:lastModified forKey:@"If-Modified-Since"];
+    }
+    request.headers = headers;
+
+    MRAPIClientCall *call = [[MRAPIClientCall alloc] initWithClient:self
+                                                           request:request
+                                                          cacheKey:URL
+                                                     expectedClass:expectedClass
+                                                        completion:completion];
+    [call start];
+    return call;
+}
+
+- (id<MRHTTPTask>)fetchTrendingWeekWithCompletion:
+    (void (^)(NSDictionary *json, NSError *error))completion {
+    NSString *URL = [MRURLBuilder dataURLForPath:@"discover/trending/week_100.json" query:nil];
+    return [self fetchURL:URL
+            expectedClass:[NSDictionary class]
+               completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSDictionary *)json, error);
+        }
+    }];
+}
+
+- (id<MRHTTPTask>)fetchGenreIndexForType:(MRMediaType)type
+                              completion:(void (^)(NSArray *json, NSError *error))completion {
+    NSString *path = [NSString stringWithFormat:@"discover/trending/%@/genre/index.json",
+                      MRMediaTypeAPIPath(type)];
+    NSString *URL = [MRURLBuilder dataURLForPath:path query:nil];
+    return [self fetchURL:URL
+            expectedClass:[NSArray class]
+               completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSArray *)json, error);
+        }
+    }];
+}
+
+- (id<MRHTTPTask>)fetchGenre:(NSString *)slug
+                     forType:(MRMediaType)type
+                  completion:(void (^)(NSArray *json, NSError *error))completion {
+    if (slug.length == 0) {
+        MRDeliverOnMain(^{
+            if (completion != nil) {
+                completion(nil, [MRError errorWithKind:MRErrorKindNotFound]);
+            }
+        });
+        return nil;
+    }
+
+    NSString *path = [NSString stringWithFormat:@"discover/trending/%@/genre/%@_month_500.json",
+                      MRMediaTypeAPIPath(type), slug];
+    NSString *URL = [MRURLBuilder dataURLForPath:path query:nil];
+    return [self fetchURL:URL
+            expectedClass:[NSArray class]
+               completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSArray *)json, error);
+        }
+    }];
+}
+
+- (id<MRHTTPTask>)fetchDetailForType:(MRMediaType)type
+                            simklID:(NSInteger)simklID
+                          completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    if (simklID <= 0) {
+        MRDeliverOnMain(^{
+            if (completion != nil) {
+                completion(nil, [MRError errorWithKind:MRErrorKindNotFound]);
+            }
+        });
+        return nil;
+    }
+
+    NSString *path = [NSString stringWithFormat:@"%@/%ld",
+                      MRMediaTypeAPIPath(type), (long)simklID];
+    NSString *URL = [MRURLBuilder apiURLForPath:path query:nil];
+    return [self fetchURL:URL
+            expectedClass:[NSDictionary class]
+               completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSDictionary *)json, error);
+        }
+    }];
+}
+
+@end
