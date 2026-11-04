@@ -11,6 +11,9 @@ void MRRunDateTests(void);
 void MRRunURLBuilderTests(void);
 void MRRunErrorTests(void);
 void MRRunAPIRequestOperationTests(void);
+void MRRunResponseCacheTests(void);
+void MRRunQuotaTrackerTests(void);
+void MRRunDiagnosticsTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -28,6 +31,15 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"api request operation");
         MRRunAPIRequestOperationTests();
+
+        MRTestBeginSuite(@"response cache");
+        MRRunResponseCacheTests();
+
+        MRTestBeginSuite(@"quota tracker");
+        MRRunQuotaTrackerTests();
+
+        MRTestBeginSuite(@"diagnostics");
+        MRRunDiagnosticsTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {
