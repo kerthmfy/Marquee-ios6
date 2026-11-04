@@ -144,11 +144,11 @@ static UIImage *MRBarButtonImage(CGFloat width, BOOL back, BOOL highlighted)
             (__bridge id)MRColor(71, 107, 145).CGColor,
             (__bridge id)MRColor(56, 89, 125).CGColor
           ];
-    CGFloat locations[] = { 0.0, 0.49, 0.50, 1.0 };
+    CGFloat normalLocations[] = { 0.0, 0.49, 0.50, 1.0 };
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
     CGGradientRef gradient = CGGradientCreateWithColors(space,
                                                         (__bridge CFArrayRef)colors,
-                                                        locations);
+                                                        highlighted ? NULL : normalLocations);
     CGContextDrawLinearGradient(ctx, gradient,
                                 CGPointMake(0.0, 0.0),
                                 CGPointMake(0.0, 30.0),
