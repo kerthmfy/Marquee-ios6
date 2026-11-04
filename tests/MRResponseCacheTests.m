@@ -72,6 +72,19 @@ static unsigned long long MRTotalCacheBytes(NSString *directory) {
     return total;
 }
 
+static NSDate *MRModificationDate(NSString *path) {
+    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path
+                                                                                error:NULL];
+    return [attributes fileModificationDate];
+}
+
+static BOOL MRSetModificationDate(NSString *path, NSDate *date) {
+    NSDictionary *attributes = @{ NSFileModificationDate: date };
+    return [[NSFileManager defaultManager] setAttributes:attributes
+                                            ofItemAtPath:path
+                                                   error:NULL];
+}
+
 static void MRSetFetchedAt(NSString *path, NSDate *date) {
     NSData *data = [NSData dataWithContentsOfFile:path];
     if (data.length == 0) {
@@ -211,18 +224,36 @@ static void MRRunPruneProtectsForeignFilesTest(void) {
     MRResponseCache *cache = [[MRResponseCache alloc] initWithDirectory:directory];
 
     // Foreign JSON files owned by other components must survive pruning and must
-    // not count toward the cache budget.
+    // not count toward the cache budget. They are deliberately dated in the
+    // distant past so that a prune which considers every "*.json" file would
+    // sort them oldest and delete them before any cache entry. If they merely
+    // tied or were newer than the cache entries, the test could pass even with
+    // that buggy predicate.
     NSString *diagnosticsPath = [directory stringByAppendingPathComponent:@"diagnostics.json"];
     NSString *statePath = [directory stringByAppendingPathComponent:@"state.json"];
     NSString *foreignJSON = @"{\"marker\":\"keep-me\",\"records\":[]}";
-    [foreignJSON writeToFile:diagnosticsPath
-                  atomically:YES
-                    encoding:NSUTF8StringEncoding
-                       error:NULL];
-    [foreignJSON writeToFile:statePath
-                  atomically:YES
-                    encoding:NSUTF8StringEncoding
-                       error:NULL];
+    NSData *foreignData = [foreignJSON dataUsingEncoding:NSUTF8StringEncoding];
+    [foreignData writeToFile:diagnosticsPath atomically:YES];
+    [foreignData writeToFile:statePath atomically:YES];
+
+    NSDate *baseDate = [NSDate dateWithTimeIntervalSince1970:1577836800.0]; // 2020-01-01
+    NSDate *foreignDate = [NSDate dateWithTimeIntervalSince1970:1.0]; // 1970-01-01T00:00:01Z
+    MRAssertTrue(MRSetModificationDate(diagnosticsPath, foreignDate),
+                 @"diagnostics.json modification date was set");
+    MRAssertTrue(MRSetModificationDate(statePath, foreignDate),
+                 @"state.json modification date was set");
+
+    // Guard against a future change that makes this test vacuous again: both
+    // foreign files must be strictly older than every cache entry's fetchedAt.
+    NSDate *diagnosticsModified = MRModificationDate(diagnosticsPath);
+    NSDate *stateModified = MRModificationDate(statePath);
+    MRAssertTrue(diagnosticsModified != nil &&
+                 [diagnosticsModified compare:baseDate] == NSOrderedAscending,
+                 @"diagnostics.json is older than every cache entry");
+    MRAssertTrue(stateModified != nil &&
+                 [stateModified compare:baseDate] == NSOrderedAscending,
+                 @"state.json is older than every cache entry");
+
     NSSet *initialEntries = [NSSet setWithArray:
                              [manager contentsOfDirectoryAtPath:directory error:NULL]];
 
@@ -230,7 +261,6 @@ static void MRRunPruneProtectsForeignFilesTest(void) {
     NSString *payload = [@"" stringByPaddingToLength:1024 * 1024
                                           withString:@"x"
                                      startingAtIndex:0];
-    NSDate *baseDate = [NSDate dateWithTimeIntervalSince1970:1577836800.0]; // 2020-01-01
     NSMutableSet *createdNames = [NSMutableSet set];
     NSString *oldestURL = nil;
     NSString *newestURL = nil;
@@ -276,20 +306,22 @@ static void MRRunPruneProtectsForeignFilesTest(void) {
                  @"diagnostics.json survives pruning");
     MRAssertTrue([manager fileExistsAtPath:statePath],
                  @"state.json survives pruning");
-    MRAssertEqualObjects(foreignJSON,
-                         [NSString stringWithContentsOfFile:diagnosticsPath
-                                                   encoding:NSUTF8StringEncoding
-                                                      error:NULL],
-                         @"diagnostics.json contents are untouched");
-    MRAssertEqualObjects(foreignJSON,
-                         [NSString stringWithContentsOfFile:statePath
-                                                   encoding:NSUTF8StringEncoding
-                                                      error:NULL],
-                         @"state.json contents are untouched");
+    MRAssertEqualObjects(foreignData,
+                         [NSData dataWithContentsOfFile:diagnosticsPath],
+                         @"diagnostics.json bytes are untouched");
+    MRAssertEqualObjects(foreignData,
+                         [NSData dataWithContentsOfFile:statePath],
+                         @"state.json bytes are untouched");
+    MRAssertTrue([MRModificationDate(diagnosticsPath) isEqualToDate:diagnosticsModified],
+                 @"diagnostics.json modification date is untouched");
+    MRAssertTrue([MRModificationDate(statePath) isEqualToDate:stateModified],
+                 @"state.json modification date is untouched");
 
     NSArray *finalEntries = [manager contentsOfDirectoryAtPath:directory error:NULL];
     NSSet *finalSet = [NSSet setWithArray:finalEntries];
-    NSMutableSet *removed = [NSMutableSet setWithSet:createdNames];
+    NSMutableSet *trackedNames = [NSMutableSet setWithSet:initialEntries];
+    [trackedNames unionSet:createdNames];
+    NSMutableSet *removed = [NSMutableSet setWithSet:trackedNames];
     [removed minusSet:finalSet];
     MRAssertTrue(removed.count > 0,
                  @"pruning actually dropped at least one cache file");
@@ -297,6 +329,10 @@ static void MRRunPruneProtectsForeignFilesTest(void) {
         MRAssertTrue(MRIsCacheOwnedFileName(name),
                      @"pruning only deletes 16-hex cache-owned files");
     }
+    MRAssertTrue(![removed containsObject:@"diagnostics.json"],
+                 @"diagnostics.json is never in the removed set");
+    MRAssertTrue(![removed containsObject:@"state.json"],
+                 @"state.json is never in the removed set");
     for (NSString *name in finalEntries) {
         MRAssertTrue([initialEntries containsObject:name] ||
                      MRIsCacheOwnedFileName(name),
