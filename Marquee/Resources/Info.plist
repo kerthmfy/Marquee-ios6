@@ -6,6 +6,13 @@
 	<string>Marquee</string>
 	<key>CFBundleExecutable</key>
 	<string>Marquee</string>
+	<key>CFBundleIconFiles</key>
+	<array>
+		<string>Icon.png</string>
+		<string>Icon@2x.png</string>
+		<string>Icon-72.png</string>
+		<string>Icon-72@2x.png</string>
+	</array>
 	<key>CFBundleIdentifier</key>
 	<string>com.marquee.app</string>
 	<key>CFBundleName</key>

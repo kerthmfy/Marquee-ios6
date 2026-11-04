@@ -9,7 +9,15 @@ Marquee_FRAMEWORKS = UIKit Foundation CoreGraphics QuartzCore Security SystemCon
 Marquee_CFLAGS = -fobjc-arc -mno-thumb -Wno-error=deprecated-module-dot-map
 Marquee_CODESIGN_FLAGS = -S
 Marquee_INSTALL_PATH = /Applications
-Marquee_RESOURCE_FILES = Marquee/Resources/Info.plist
+Marquee_RESOURCE_FILES = Marquee/Resources/Info.plist \
+	Marquee/Resources/Icon.png \
+	Marquee/Resources/Icon@2x.png \
+	Marquee/Resources/Icon-72.png \
+	Marquee/Resources/Icon-72@2x.png \
+	Marquee/Resources/Default.png \
+	Marquee/Resources/Default@2x.png \
+	Marquee/Resources/Default-568h@2x.png \
+	Marquee/Resources/SimklBadge.png
 
 include $(THEOS_MAKE_PATH)/application.mk
 

@@ -1,5 +1,6 @@
 #import "MRRootTabBarController.h"
 
+#import "MRAppearance.h"
 #import "MRForYouViewController.h"
 #import "MRLibraryViewController.h"
 #import "MRSearchViewController.h"
@@ -24,6 +25,8 @@
                                     nil];
         self.viewControllers = viewControllers;
         self.selectedIndex = 0;
+
+        [MRAppearance styleTabBar:self.tabBar];
     }
     return self;
 }
@@ -32,6 +35,7 @@
 {
     UINavigationController *navigationController =
         [[UINavigationController alloc] initWithRootViewController:rootViewController];
+    [MRAppearance styleNavigationBar:navigationController.navigationBar];
     navigationController.tabBarItem =
         [[UITabBarItem alloc] initWithTitle:title image:nil tag:0];
     return navigationController;
