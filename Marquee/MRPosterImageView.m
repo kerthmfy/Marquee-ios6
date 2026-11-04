@@ -106,7 +106,10 @@ static UIImage *MRPosterPlaceholderImage(void) {
     self.image = MRPosterPlaceholderImage();
 
     __weak MRPosterImageView *weakSelf = self;
-    __block id loadToken = nil;
+    // The token retains this block until delivery/cancellation. Keep only a weak
+    // reference back to the token so a caller's completion cannot form a
+    // token -> block -> token retain cycle even if delivery is never reached.
+    __block __weak id loadToken = nil;
     loadToken = [_imageCache loadImageForURL:URL completion:^(UIImage *image, NSError *error) {
         MRPosterImageView *strongSelf = weakSelf;
         if (strongSelf == nil) {

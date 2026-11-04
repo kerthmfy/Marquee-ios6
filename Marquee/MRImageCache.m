@@ -110,7 +110,10 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
 @property (nonatomic, copy) void (^completion)(UIImage *image, NSError *error);
 - (void)cancel;
 - (BOOL)isCancelled;
-- (BOOL)claimDelivery;
+// Atomically claims one-shot delivery and releases the completion while still
+// holding the token lock. Callers capture the token in their completion block,
+// so keeping the block after delivery would form token -> block -> token.
+- (void (^)(UIImage *image, NSError *error))claimCompletion;
 @end
 
 @implementation MRImageLoadToken {
@@ -121,6 +124,7 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
 - (void)cancel {
     @synchronized(self) {
         _cancelled = YES;
+        self.completion = nil;
     }
 }
 
@@ -130,13 +134,15 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
     }
 }
 
-- (BOOL)claimDelivery {
+- (void (^)(UIImage *image, NSError *error))claimCompletion {
     @synchronized(self) {
         if (_cancelled || _delivered) {
-            return NO;
+            return nil;
         }
         _delivered = YES;
-        return YES;
+        void (^completion)(UIImage *, NSError *) = self.completion;
+        self.completion = nil;
+        return completion;
     }
 }
 
@@ -575,6 +581,7 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
     }
 
     dispatch_async(dispatch_get_main_queue(), ^{
+        void (^completion)(UIImage *, NSError *) = nil;
         @synchronized(self) {
             NSMutableArray *tokens = [self.tokensByURL objectForKey:loadToken.URL];
             if (tokens != nil) {
@@ -583,12 +590,12 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
                     [self.tokensByURL removeObjectForKey:loadToken.URL];
                 }
             }
+            // Removing from the pending set and claiming delivery are one step,
+            // so cancelLoad:/cancelLoadForURL: either cancels before this claim
+            // or observes a token that has already delivered.
+            completion = [loadToken claimCompletion];
         }
 
-        if (![loadToken claimDelivery]) {
-            return;
-        }
-        void (^completion)(UIImage *, NSError *) = loadToken.completion;
         if (completion != nil) {
             completion(image, error);
         }
