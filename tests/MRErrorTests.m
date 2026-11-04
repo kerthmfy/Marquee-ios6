@@ -45,6 +45,15 @@ void MRRunErrorTests(void) {
     MRAssertKind(500, @"", nil, MRErrorKindServer, @"500 server");
     MRAssertKind(502, @"", nil, MRErrorKindServer, @"502 server");
     MRAssertKind(503, @"", nil, MRErrorKindServer, @"503 server");
+    MRAssertKind(504, @"", nil, MRErrorKindServer, @"504 gateway timeout server");
+    MRAssertKind(520, @"", nil, MRErrorKindServer, @"520 proxy server");
+    for (NSInteger status = 500; status <= 599; status++) {
+        MRAssertKind(status, @"", nil, MRErrorKindServer,
+                     [NSString stringWithFormat:@"%ld server range",
+                      (long)status]);
+    }
+    MRAssertKind(499, @"", nil, MRErrorKindUnknown, @"499 below server range");
+    MRAssertKind(600, @"", nil, MRErrorKindUnknown, @"600 above server range");
 
     NSError *transport = [NSError errorWithDomain:NSURLErrorDomain
                                              code:NSURLErrorNotConnectedToInternet

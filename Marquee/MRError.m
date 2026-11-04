@@ -96,7 +96,7 @@ static NSNumber *MRRetryAfterSeconds(NSDictionary *headers) {
     if (statusCode == 404) {
         return MRErrorKindNotFound;
     }
-    if (statusCode == 500 || statusCode == 502 || statusCode == 503) {
+    if (statusCode >= 500 && statusCode <= 599) {
         return MRErrorKindServer;
     }
     return MRErrorKindUnknown;

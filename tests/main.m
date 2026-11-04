@@ -10,6 +10,7 @@ void MRRunMediaItemTests(void);
 void MRRunDateTests(void);
 void MRRunURLBuilderTests(void);
 void MRRunErrorTests(void);
+void MRRunAPIRequestOperationTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -24,6 +25,9 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"error");
         MRRunErrorTests();
+
+        MRTestBeginSuite(@"api request operation");
+        MRRunAPIRequestOperationTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {

@@ -223,21 +223,22 @@
 }
 
 - (void)finishWithResponse:(MRHTTPResponse *)response {
+    // Checking the guard, mutating state, and sending the KVO notifications must
+    // happen under one lock; otherwise two threads can both pass the guard and
+    // deliver two completions.
     @synchronized(self) {
         if (_finished) {
             return;
         }
-    }
 
-    [self willChangeValueForKey:@"isExecuting"];
-    [self willChangeValueForKey:@"isFinished"];
-    @synchronized(self) {
+        [self willChangeValueForKey:@"isExecuting"];
+        [self willChangeValueForKey:@"isFinished"];
         _executing = NO;
         _finished = YES;
         _response = response;
+        [self didChangeValueForKey:@"isExecuting"];
+        [self didChangeValueForKey:@"isFinished"];
     }
-    [self didChangeValueForKey:@"isExecuting"];
-    [self didChangeValueForKey:@"isFinished"];
 
     void (^completion)(MRHTTPResponse *) = _completion;
     if (completion != nil) {

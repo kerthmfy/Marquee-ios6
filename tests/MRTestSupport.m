@@ -63,6 +63,27 @@ void MRAssertEqualIntegers(NSInteger expected, NSInteger actual, NSString *messa
     }
 }
 
+BOOL MRRunUntil(BOOL (^condition)(void), NSTimeInterval timeout) {
+    if (condition == nil) {
+        return YES;
+    }
+    if (condition()) {
+        return YES;
+    }
+
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
+    while ([deadline timeIntervalSinceNow] > 0) {
+        @autoreleasepool {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        }
+        if (condition()) {
+            return YES;
+        }
+    }
+    return condition();
+}
+
 NSDictionary *MRFixture(NSString *name) {
     NSString *file = name;
     if (![[file pathExtension] isEqualToString:@"json"]) {
