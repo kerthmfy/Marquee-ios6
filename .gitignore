@@ -1,3 +1,8 @@
 .worktrees/
 .superpowers/
 .DS_Store
+.theos/
+packages/
+*.deb
+build/
+/tmp/

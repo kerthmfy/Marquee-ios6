@@ -1,0 +1,6 @@
+#define MR_SIMKL_CLIENT_ID @"REPLACE_WITH_V2_CLIENT_ID"
+#define MR_APP_NAME @"marquee"
+#define MR_APP_VERSION @"1.0"
+#define MR_USER_AGENT @"Marquee/1.0 (iOS 6)"
+#define MR_API_BASE @"https://api.simkl.com"
+#define MR_DATA_BASE @"https://data.simkl.in"
