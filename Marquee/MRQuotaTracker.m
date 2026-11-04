@@ -188,43 +188,48 @@ static BOOL MRQuotaParseSeconds(NSString *string, NSTimeInterval *outValue) {
         return;
     }
 
-    NSInteger newLimit = self.limit;
-    NSInteger newRemaining = self.remaining;
-    NSDate *newResetAt = self.resetAt;
-    BOOL changed = NO;
+    // Concurrent callers may arrive from background queues. The whole
+    // read-modify-persist-notify sequence must be atomic so state cannot
+    // interleave and an unchanged update cannot post a second notification.
+    @synchronized(self) {
+        NSInteger newLimit = self.limit;
+        NSInteger newRemaining = self.remaining;
+        NSDate *newResetAt = self.resetAt;
+        BOOL changed = NO;
 
-    NSInteger parsed = 0;
-    if (MRQuotaParseInteger(MRQuotaHeaderValue(headers, @"X-RateLimit-Limit"), &parsed)) {
-        if (parsed != newLimit) {
-            changed = YES;
+        NSInteger parsed = 0;
+        if (MRQuotaParseInteger(MRQuotaHeaderValue(headers, @"X-RateLimit-Limit"), &parsed)) {
+            if (parsed != newLimit) {
+                changed = YES;
+            }
+            newLimit = parsed;
         }
-        newLimit = parsed;
-    }
-    if (MRQuotaParseInteger(MRQuotaHeaderValue(headers, @"X-RateLimit-Remaining"), &parsed)) {
-        if (parsed != newRemaining) {
-            changed = YES;
+        if (MRQuotaParseInteger(MRQuotaHeaderValue(headers, @"X-RateLimit-Remaining"), &parsed)) {
+            if (parsed != newRemaining) {
+                changed = YES;
+            }
+            newRemaining = parsed;
         }
-        newRemaining = parsed;
-    }
 
-    NSTimeInterval seconds = 0.0;
-    if (MRQuotaParseSeconds(MRQuotaHeaderValue(headers, @"Retry-After"), &seconds)) {
-        NSDate *reset = [NSDate dateWithTimeIntervalSinceNow:seconds];
-        if (newResetAt == nil || ![newResetAt isEqualToDate:reset]) {
-            changed = YES;
+        NSTimeInterval seconds = 0.0;
+        if (MRQuotaParseSeconds(MRQuotaHeaderValue(headers, @"Retry-After"), &seconds)) {
+            NSDate *reset = [NSDate dateWithTimeIntervalSinceNow:seconds];
+            if (newResetAt == nil || ![newResetAt isEqualToDate:reset]) {
+                changed = YES;
+            }
+            newResetAt = reset;
         }
-        newResetAt = reset;
-    }
 
-    if (!changed) {
-        return;
-    }
+        if (!changed) {
+            return;
+        }
 
-    self.limit = newLimit;
-    self.remaining = newRemaining;
-    self.resetAt = newResetAt;
-    [self save];
-    [self postChangeNotification];
+        self.limit = newLimit;
+        self.remaining = newRemaining;
+        self.resetAt = newResetAt;
+        [self save];
+        [self postChangeNotification];
+    }
 }
 
 @end

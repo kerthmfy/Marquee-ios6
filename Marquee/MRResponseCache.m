@@ -9,6 +9,23 @@
 
 static const unsigned long long MRResponseCacheMaximumBytes = 50ULL * 1024ULL * 1024ULL;
 
+// Cache-owned files are exactly 16 lowercase hex characters plus ".json".
+// Anything else in the directory belongs to another component (diagnostics,
+// quota state, account state) and must never be counted or deleted here.
+static BOOL MRResponseCacheIsCacheFileName(NSString *name) {
+    if (name.length != 21 || ![name hasSuffix:@".json"]) {
+        return NO;
+    }
+    for (NSUInteger index = 0; index < 16; index += 1) {
+        unichar character = [name characterAtIndex:index];
+        if (!((character >= '0' && character <= '9') ||
+              (character >= 'a' && character <= 'f'))) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 static NSString *MRResponseCacheFileNameForURL(NSString *URL) {
     // FNV-1a over the UTF-8 bytes. A 64-bit hash keeps accidental collisions
     // vanishingly unlikely while staying deterministic across launches.
@@ -192,7 +209,7 @@ static NSString *MRResponseCacheFileNameForURL(NSString *URL) {
 
     NSMutableArray *names = [NSMutableArray array];
     for (NSString *name in entries) {
-        if ([[name pathExtension] isEqualToString:@"json"]) {
+        if (MRResponseCacheIsCacheFileName(name)) {
             [names addObject:name];
         }
     }
