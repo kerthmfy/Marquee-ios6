@@ -1,0 +1,23 @@
+{
+  "shows": [
+    {
+      "status": "watching",
+      "next_to_watch_info": {
+        "season": 8,
+        "episode": 3,
+        "title": "The Prisoner of Benda",
+        "date": "2010-08-19T00:00:00Z"
+      },
+      "show": {
+        "title": "Futurama",
+        "year": 1999,
+        "ids": {
+          "simkl": 3407,
+          "slug": "futurama"
+        },
+        "poster": "1/1a2b3c",
+        "fanart": "2/2b3c4d"
+      }
+    }
+  ]
+}

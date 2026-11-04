@@ -1,0 +1,16 @@
+{
+  "movies": [
+    {
+      "status": "completed",
+      "movie": {
+        "title": "Interstellar",
+        "year": 2014,
+        "ids": {
+          "simkl": 250822,
+          "slug": "interstellar"
+        },
+        "poster": "20/2052598c2716ef054"
+      }
+    }
+  ]
+}

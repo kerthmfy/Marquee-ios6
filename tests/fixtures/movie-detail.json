@@ -1,0 +1,51 @@
+{
+  "title": "Interstellar",
+  "year": 2014,
+  "ids": {
+    "simkl": 250822,
+    "slug": "interstellar",
+    "imdb": "tt0816692",
+    "tmdb": "157336"
+  },
+  "poster": "20/2052598c2716ef054",
+  "fanart": "21/2150f8a36c0b7a2e",
+  "genres": [
+    "Adventure",
+    "Drama",
+    "Science Fiction"
+  ],
+  "ratings": {
+    "simkl": {
+      "rating": 8.6,
+      "votes": 4218
+    },
+    "imdb": {
+      "rating": 8.7,
+      "votes": 2019487
+    }
+  },
+  "similar": [
+    {
+      "title": "The Prestige",
+      "year": 2006,
+      "type": "movie",
+      "poster": "22/22a1b2c3d4e5f6a7",
+      "ids": {
+        "simkl": 250823,
+        "slug": "the-prestige"
+      }
+    }
+  ],
+  "users_recommendations": [
+    {
+      "title": "Arrival",
+      "year": 2016,
+      "type": "movie",
+      "poster": "23/23b2c3d4e5f6a7b8",
+      "ids": {
+        "simkl": 250824,
+        "slug": "arrival"
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "anime": [
+    {
+      "status": "watching",
+      "show": {
+        "title": "Frieren",
+        "year": 2023,
+        "ids": {
+          "simkl": 516897,
+          "slug": "frieren"
+        }
+      }
+    }
+  ]
+}

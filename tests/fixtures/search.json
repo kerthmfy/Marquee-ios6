@@ -1,0 +1,12 @@
+[
+  {
+    "title": "John Wick",
+    "year": 2014,
+    "endpoint_type": "movies",
+    "poster": "30/3002370dbc564e5d8",
+    "ids": {
+      "simkl_id": 342994,
+      "slug": "john-wick"
+    }
+  }
+]

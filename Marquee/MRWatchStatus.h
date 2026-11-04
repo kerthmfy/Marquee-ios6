@@ -13,3 +13,8 @@ typedef NS_ENUM(NSInteger, MRWatchStatus) {
     MRWatchStatusHold,
     MRWatchStatusDropped
 };
+
+// Simkl status keys: "watching", "plantowatch", "completed", "hold", "dropped".
+MRWatchStatus MRWatchStatusFromKey(NSString *key);
+NSString *MRWatchStatusKey(MRWatchStatus status);
+NSString *MRWatchStatusDisplayName(MRWatchStatus status);

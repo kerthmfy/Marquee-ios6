@@ -1,0 +1,35 @@
+{
+  "movies": [
+    {
+      "title": "Dune: Part Two",
+      "year": 2024,
+      "poster": "1/1a",
+      "ids": {
+        "simkl_id": 1098350,
+        "slug": "dune-part-two"
+      }
+    }
+  ],
+  "tv": [
+    {
+      "title": "The Bear",
+      "year": 2022,
+      "poster": "2/2b",
+      "ids": {
+        "simkl_id": 1515418,
+        "slug": "the-bear"
+      }
+    }
+  ],
+  "anime": [
+    {
+      "title": "Frieren",
+      "year": 2023,
+      "poster": "3/3c",
+      "ids": {
+        "simkl_id": 516897,
+        "slug": "frieren"
+      }
+    }
+  ]
+}
