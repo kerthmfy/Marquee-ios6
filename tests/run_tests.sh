@@ -8,5 +8,6 @@ clang -fobjc-arc -framework Foundation -I Marquee \
   Marquee/MRHTTPRequest.m Marquee/MRHTTPResponse.m Marquee/MRAPIRequestOperation.m \
   Marquee/MRResponseCache.m Marquee/MRQuotaTracker.m Marquee/MRDiagnostics.m \
   Marquee/MRAPIClient.m \
+  Marquee/MRFeedSection.m Marquee/MRPublicFeedBuilder.m \
   tests/*.m -o /tmp/marquee-tests
 /tmp/marquee-tests

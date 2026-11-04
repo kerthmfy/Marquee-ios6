@@ -15,6 +15,7 @@ void MRRunResponseCacheTests(void);
 void MRRunQuotaTrackerTests(void);
 void MRRunDiagnosticsTests(void);
 void MRRunAPIClientPublicTests(void);
+void MRRunPublicFeedBuilderTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -44,6 +45,9 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"api client public");
         MRRunAPIClientPublicTests();
+
+        MRTestBeginSuite(@"public feed builder");
+        MRRunPublicFeedBuilderTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {
