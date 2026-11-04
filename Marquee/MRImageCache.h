@@ -8,7 +8,9 @@
 
 // Two-level poster cache: an NSCache of decoded images and a bounded JPEG disk
 // cache. Loads are decoded and downloaded on a four-operation queue; callers
-// always receive completions on the main queue.
+// always receive completions on the main queue. Every load returns an opaque
+// token so callers can cancel only their own request, even when several views
+// share the same URL.
 @interface MRImageCache : NSObject
 
 - (instancetype)init;
@@ -16,8 +18,9 @@
                       httpClient:(id<MRHTTPClient>)httpClient;
 
 - (UIImage *)cachedImageForURL:(NSString *)URL;
-- (void)loadImageForURL:(NSString *)URL
-             completion:(void (^)(UIImage *image, NSError *error))completion;
+- (id)loadImageForURL:(NSString *)URL
+           completion:(void (^)(UIImage *image, NSError *error))completion;
+- (void)cancelLoad:(id)token;
 - (void)cancelLoadForURL:(NSString *)URL;
 - (void)clearMemoryCache;
 - (void)clearDiskCache;

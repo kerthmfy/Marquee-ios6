@@ -14,6 +14,25 @@ static const NSUInteger MRImageMemoryCountLimit = 200;
 static const NSUInteger MRImageMemoryCostLimit = 50 * 1024 * 1024;
 static const unsigned long long MRImageDiskLimitBytes = 100ULL * 1024ULL * 1024ULL;
 static const NSUInteger MRImageConcurrentLoads = 4;
+static const NSUInteger MRImageMaxDataBytes = 10 * 1024 * 1024;
+
+// NSCache cost is decoded pixel bytes, not compressed JPEG bytes, so the 50 MB
+// limit bounds the memory an image actually occupies once decoded.
+static NSUInteger MRImageCostForImage(UIImage *image) {
+    if (image == nil) {
+        return 0;
+    }
+    CGFloat scale = image.scale > 0.0 ? image.scale : 1.0;
+    double bytes = (double)image.size.width * (double)image.size.height *
+                   (double)scale * (double)scale * 4.0;
+    if (bytes <= 0.0) {
+        return 0;
+    }
+    if (bytes >= (double)NSUIntegerMax) {
+        return NSUIntegerMax;
+    }
+    return (NSUInteger)bytes;
+}
 
 static NSString *MRDefaultImageCacheDirectory(void) {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
@@ -52,15 +71,16 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
 }
 
 @class MRImageLoadOperation;
+@class MRImageLoadToken;
 
 @interface MRImageCache ()
 @property (nonatomic, copy) NSString *directory;
 @property (nonatomic, strong) id<MRHTTPClient> httpClient;
 @property (nonatomic, strong) NSCache *memoryCache;
 @property (nonatomic, strong) NSOperationQueue *operationQueue;
+@property (nonatomic, strong) NSOperationQueue *ioQueue;
 @property (nonatomic, strong) NSMutableDictionary *operations;
-@property (nonatomic, strong) NSMutableDictionary *completions;
-@property (nonatomic, strong) NSMutableDictionary *generations;
+@property (nonatomic, strong) NSMutableDictionary *tokensByURL;
 
 - (BOOL)ensureDirectory;
 - (void)touchPath:(NSString *)path;
@@ -72,36 +92,95 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
 - (NSArray *)ownedFileNames;
 - (void)pruneDiskCacheIfNeeded;
 - (void)handleMemoryWarning:(NSNotification *)note;
-- (void)finishLoadForURL:(NSString *)URL
-              generation:(NSUInteger)generation
-                   image:(UIImage *)image
-                   error:(NSError *)error;
+- (void)performIO:(void (^)(void))block;
+- (void)trackToken:(MRImageLoadToken *)token forURL:(NSString *)URL;
+- (void)finishOperation:(MRImageLoadOperation *)operation
+                    URL:(NSString *)URL
+                  image:(UIImage *)image
+                  error:(NSError *)error;
+- (void)deliverToken:(id)token image:(UIImage *)image error:(NSError *)error;
+@end
+
+#pragma mark - Load token
+
+// One caller's request. Cancelling a token never affects another token for the
+// same URL; the shared load operation only stops once every token is cancelled.
+@interface MRImageLoadToken : NSObject
+@property (nonatomic, copy) NSString *URL;
+@property (nonatomic, copy) void (^completion)(UIImage *image, NSError *error);
+- (void)cancel;
+- (BOOL)isCancelled;
+- (BOOL)claimDelivery;
+@end
+
+@implementation MRImageLoadToken {
+    BOOL _cancelled;
+    BOOL _delivered;
+}
+
+- (void)cancel {
+    @synchronized(self) {
+        _cancelled = YES;
+    }
+}
+
+- (BOOL)isCancelled {
+    @synchronized(self) {
+        return _cancelled;
+    }
+}
+
+- (BOOL)claimDelivery {
+    @synchronized(self) {
+        if (_cancelled || _delivered) {
+            return NO;
+        }
+        _delivered = YES;
+        return YES;
+    }
+}
+
 @end
 
 #pragma mark - Load operation
 
 @interface MRImageLoadOperation : NSOperation
-@property (nonatomic, strong) MRImageCache *cache;
+@property (nonatomic, weak) MRImageCache *cache;
 @property (nonatomic, copy) NSString *URL;
-@property (nonatomic, assign) NSUInteger generation;
 @property (nonatomic, strong) id<MRHTTPTask> activeTask;
-- (instancetype)initWithCache:(MRImageCache *)cache
-                          URL:(NSString *)URL
-                   generation:(NSUInteger)generation;
+@property (nonatomic, strong) NSMutableArray *tokens;
+- (instancetype)initWithCache:(MRImageCache *)cache URL:(NSString *)URL;
 @end
 
-@implementation MRImageLoadOperation
+@implementation MRImageLoadOperation {
+    BOOL _executing;
+    BOOL _finished;
+}
 
-- (instancetype)initWithCache:(MRImageCache *)cache
-                          URL:(NSString *)URL
-                   generation:(NSUInteger)generation {
+- (instancetype)initWithCache:(MRImageCache *)cache URL:(NSString *)URL {
     self = [super init];
     if (self) {
         _cache = cache;
         _URL = [URL copy];
-        _generation = generation;
+        _tokens = [NSMutableArray array];
     }
     return self;
+}
+
+- (BOOL)isConcurrent {
+    return YES;
+}
+
+- (BOOL)isExecuting {
+    @synchronized(self) {
+        return _executing;
+    }
+}
+
+- (BOOL)isFinished {
+    @synchronized(self) {
+        return _finished;
+    }
 }
 
 - (void)cancel {
@@ -112,102 +191,151 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
         self.activeTask = nil;
     }
     [task cancel];
-}
 
-- (void)main {
-    @autoreleasepool {
-        if (self.isCancelled) {
-            return;
-        }
-
-        NSData *data = [self.cache diskDataForURL:self.URL];
-        if (data.length > 0) {
-            UIImage *image = [UIImage imageWithData:data];
-            if (image != nil) {
-                [self.cache storeMemoryImage:image
-                                      forURL:self.URL
-                                        cost:(NSUInteger)data.length];
-                [self.cache finishLoadForURL:self.URL
-                                  generation:self.generation
-                                       image:image
-                                       error:nil];
-                return;
-            }
-            [self.cache removeDiskDataForURL:self.URL];
-        }
-
-        if (self.isCancelled) {
-            return;
-        }
-
-        [self download];
+    BOOL executing = NO;
+    @synchronized(self) {
+        executing = _executing;
+    }
+    // Cancelling before the queue starts the operation is handled by -start;
+    // cancelling while I/O is in flight finishes immediately to free the slot.
+    if (executing) {
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindCancelled]];
     }
 }
 
+- (void)start {
+    if (self.isCancelled) {
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindCancelled]];
+        return;
+    }
+
+    [self willChangeValueForKey:@"isExecuting"];
+    @synchronized(self) {
+        _executing = YES;
+    }
+    [self didChangeValueForKey:@"isExecuting"];
+
+    MRImageCache *cache = self.cache;
+    if (cache == nil) {
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindUnknown]];
+        return;
+    }
+
+    // Queue the disk probe on the cache's serial I/O queue and return at once;
+    // a network load never ties up an operation-queue worker while waiting.
+    [cache performIO:^{
+        @autoreleasepool {
+            [self load];
+        }
+    }];
+}
+
+- (void)load {
+    if (self.isCancelled) {
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindCancelled]];
+        return;
+    }
+
+    MRImageCache *cache = self.cache;
+    NSData *data = [cache diskDataForURL:self.URL];
+    if (data.length > 0) {
+        if (data.length > MRImageMaxDataBytes) {
+            [cache removeDiskDataForURL:self.URL];
+            [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindParse]];
+            return;
+        }
+        UIImage *image = [UIImage imageWithData:data];
+        if (image != nil) {
+            [cache storeMemoryImage:image
+                             forURL:self.URL
+                               cost:MRImageCostForImage(image)];
+            [self finishWithImage:image error:nil];
+            return;
+        }
+        [cache removeDiskDataForURL:self.URL];
+    }
+
+    if (self.isCancelled) {
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindCancelled]];
+        return;
+    }
+
+    [self download];
+}
+
 - (void)download {
+    MRImageCache *cache = self.cache;
+    if (cache == nil) {
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindUnknown]];
+        return;
+    }
+
     MRHTTPRequest *request = [[MRHTTPRequest alloc] initWithURL:self.URL method:@"GET"];
     request.queueKind = MRHTTPQueueKindCatalog;
     request.headers = @{ @"User-Agent": MR_USER_AGENT };
 
-    NSCondition *condition = [[NSCondition alloc] init];
-    __block MRHTTPResponse *response = nil;
-
-    id<MRHTTPTask> task = [self.cache.httpClient sendRequest:request
-                                                  completion:^(MRHTTPResponse *result) {
-        [condition lock];
-        response = result;
-        [condition broadcast];
-        [condition unlock];
+    __weak MRImageLoadOperation *weakSelf = self;
+    __weak MRImageCache *weakCache = cache;
+    id<MRHTTPTask> task = [cache.httpClient sendRequest:request
+                                             completion:^(MRHTTPResponse *result) {
+        MRImageLoadOperation *strongSelf = weakSelf;
+        MRImageCache *strongCache = weakCache;
+        if (strongSelf == nil) {
+            return;
+        }
+        if (strongCache == nil) {
+            [strongSelf finishWithImage:nil
+                                  error:[MRError errorWithKind:MRErrorKindUnknown]];
+            return;
+        }
+        // The HTTP client delivers on the main queue. Decode and disk writes
+        // belong on the cache's serial I/O queue, not on main.
+        [strongCache performIO:^{
+            @autoreleasepool {
+                [strongSelf handleResponse:result];
+            }
+        }];
     }];
-    @synchronized(self) {
-        self.activeTask = task;
-    }
-
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:request.timeout + 5.0];
-    [condition lock];
-    while (response == nil && !self.isCancelled && [deadline timeIntervalSinceNow] > 0.0) {
-        [condition waitUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
-    }
-    MRHTTPResponse *result = response;
-    [condition unlock];
 
     @synchronized(self) {
-        self.activeTask = nil;
+        if (self.isCancelled || _finished) {
+            [task cancel];
+        } else {
+            self.activeTask = task;
+        }
     }
+}
 
+- (void)handleResponse:(MRHTTPResponse *)result {
     if (self.isCancelled) {
-        [task cancel];
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindCancelled]];
         return;
     }
 
     if (result == nil) {
-        [task cancel];
-        [self.cache finishLoadForURL:self.URL
-                          generation:self.generation
-                               image:nil
-                               error:[MRError errorWithKind:MRErrorKindOffline]];
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindOffline]];
         return;
     }
 
     if (result.transportError == nil &&
         result.statusCode >= 200 && result.statusCode <= 299 &&
         result.data.length > 0) {
-        UIImage *image = [UIImage imageWithData:result.data];
-        if (image != nil) {
-            [self.cache storeDiskData:result.data forURL:self.URL];
-            [self.cache storeMemoryImage:image
-                                  forURL:self.URL
-                                    cost:(NSUInteger)result.data.length];
-            [self.cache finishLoadForURL:self.URL
-                              generation:self.generation
-                                   image:image
-                                   error:nil];
+        if (result.data.length > MRImageMaxDataBytes) {
+            [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindParse]];
             return;
         }
-        [self.cache finishLoadForURL:self.URL
-                          generation:self.generation
-                               image:nil
-                               error:[MRError errorWithKind:MRErrorKindParse]];
+
+        UIImage *image = [UIImage imageWithData:result.data];
+        if (image != nil) {
+            MRImageCache *cache = self.cache;
+            [cache storeDiskData:result.data forURL:self.URL];
+            [cache storeMemoryImage:image
+                             forURL:self.URL
+                               cost:MRImageCostForImage(image)];
+            [self finishWithImage:image error:nil];
+            return;
+        }
+        [self finishWithImage:nil error:[MRError errorWithKind:MRErrorKindParse]];
         return;
     }
 
@@ -215,10 +343,32 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
                                            body:result.data
                                         headers:result.headers
                                  transportError:result.transportError];
-    [self.cache finishLoadForURL:self.URL
-                      generation:self.generation
-                           image:nil
-                           error:error];
+    [self finishWithImage:nil error:error];
+}
+
+- (void)finishWithImage:(UIImage *)image error:(NSError *)error {
+    MRImageCache *cache = self.cache;
+    NSString *URL = self.URL;
+
+    @synchronized(self) {
+        if (_finished) {
+            return;
+        }
+        BOOL wasExecuting = _executing;
+        if (wasExecuting) {
+            [self willChangeValueForKey:@"isExecuting"];
+        }
+        [self willChangeValueForKey:@"isFinished"];
+        _executing = NO;
+        _finished = YES;
+        self.activeTask = nil;
+        if (wasExecuting) {
+            [self didChangeValueForKey:@"isExecuting"];
+        }
+        [self didChangeValueForKey:@"isFinished"];
+    }
+
+    [cache finishOperation:self URL:URL image:image error:error];
 }
 
 @end
@@ -245,12 +395,17 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
         _memoryCache.name = @"MarqueeImages";
 
         _operations = [NSMutableDictionary dictionary];
-        _completions = [NSMutableDictionary dictionary];
-        _generations = [NSMutableDictionary dictionary];
+        _tokensByURL = [NSMutableDictionary dictionary];
 
         _operationQueue = [[NSOperationQueue alloc] init];
         _operationQueue.maxConcurrentOperationCount = (NSInteger)MRImageConcurrentLoads;
         _operationQueue.name = @"com.marquee.images";
+
+        // Disk reads, decodes, and JPEG writes are serialized off the operation
+        // queue so a slow file never blocks a network completion on main.
+        _ioQueue = [[NSOperationQueue alloc] init];
+        _ioQueue.maxConcurrentOperationCount = 1;
+        _ioQueue.name = @"com.marquee.images.io";
 
         [[NSNotificationCenter defaultCenter]
             addObserver:self
@@ -263,6 +418,15 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_operationQueue cancelAllOperations];
+    [_ioQueue cancelAllOperations];
+}
+
+- (void)performIO:(void (^)(void))block {
+    if (block == nil) {
+        return;
+    }
+    [self.ioQueue addOperationWithBlock:block];
 }
 
 - (void)handleMemoryWarning:(NSNotification *)note {
@@ -291,59 +455,89 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
 
 #pragma mark - Loading
 
-- (void)loadImageForURL:(NSString *)URL
-             completion:(void (^)(UIImage *image, NSError *error))completion {
+- (id)loadImageForURL:(NSString *)URL
+           completion:(void (^)(UIImage *image, NSError *error))completion {
+    MRImageLoadToken *token = [[MRImageLoadToken alloc] init];
+    token.URL = [URL copy];
+    token.completion = completion;
+
     if (URL.length == 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (completion != nil) {
-                completion(nil, [MRError errorWithKind:MRErrorKindUnknown]);
-            }
+            [self deliverToken:token
+                         image:nil
+                         error:[MRError errorWithKind:MRErrorKindUnknown]];
         });
-        return;
+        return token;
     }
 
     UIImage *cached = [self.memoryCache objectForKey:URL];
     if (cached != nil) {
+        @synchronized(self) {
+            [self trackToken:token forURL:URL];
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (completion != nil) {
-                completion(cached, nil);
-            }
+            [self deliverToken:token image:cached error:nil];
         });
-        return;
+        return token;
     }
 
     MRImageLoadOperation *operation = nil;
     @synchronized(self) {
+        [self trackToken:token forURL:URL];
+
         MRImageLoadOperation *existing = [self.operations objectForKey:URL];
         if (existing != nil) {
-            NSMutableArray *blocks = [self.completions objectForKey:URL];
-            if (blocks == nil) {
-                blocks = [NSMutableArray array];
-                [self.completions setObject:blocks forKey:URL];
-            }
-            if (completion != nil) {
-                [blocks addObject:[completion copy]];
-            }
-            return;
+            [existing.tokens addObject:token];
+            return token;
         }
 
-        NSUInteger generation =
-            [[self.generations objectForKey:URL] unsignedIntegerValue] + 1;
-        [self.generations setObject:@(generation) forKey:URL];
-
-        operation = [[MRImageLoadOperation alloc] initWithCache:self
-                                                          URL:URL
-                                                   generation:generation];
+        operation = [[MRImageLoadOperation alloc] initWithCache:self URL:URL];
+        [operation.tokens addObject:token];
         [self.operations setObject:operation forKey:URL];
-
-        NSMutableArray *blocks = [NSMutableArray array];
-        if (completion != nil) {
-            [blocks addObject:[completion copy]];
-        }
-        [self.completions setObject:blocks forKey:URL];
     }
 
     [self.operationQueue addOperation:operation];
+    return token;
+}
+
+- (void)cancelLoad:(id)token {
+    if (![token isKindOfClass:[MRImageLoadToken class]]) {
+        return;
+    }
+    MRImageLoadToken *loadToken = (MRImageLoadToken *)token;
+    MRImageLoadOperation *operation = nil;
+
+    @synchronized(self) {
+        [loadToken cancel];
+
+        NSMutableArray *tokens = [self.tokensByURL objectForKey:loadToken.URL];
+        if (tokens != nil) {
+            [tokens removeObjectIdenticalTo:loadToken];
+            if (tokens.count == 0) {
+                [self.tokensByURL removeObjectForKey:loadToken.URL];
+            }
+        }
+
+        // Stop the shared operation only when none of its own callers remain.
+        // Other outstanding tokens (including earlier completions waiting for
+        // main) keep it alive.
+        MRImageLoadOperation *candidate = [self.operations objectForKey:loadToken.URL];
+        if (candidate != nil) {
+            BOOL hasLiveToken = NO;
+            for (MRImageLoadToken *candidateToken in candidate.tokens) {
+                if (![candidateToken isCancelled]) {
+                    hasLiveToken = YES;
+                    break;
+                }
+            }
+            if (!hasLiveToken) {
+                operation = candidate;
+                [self.operations removeObjectForKey:loadToken.URL];
+            }
+        }
+    }
+
+    [operation cancel];
 }
 
 - (void)cancelLoadForURL:(NSString *)URL {
@@ -353,43 +547,72 @@ static NSString *MRImageCacheFileNameForURL(NSString *URL) {
 
     MRImageLoadOperation *operation = nil;
     @synchronized(self) {
-        NSUInteger generation =
-            [[self.generations objectForKey:URL] unsignedIntegerValue] + 1;
-        [self.generations setObject:@(generation) forKey:URL];
+        NSArray *tokens = [[self.tokensByURL objectForKey:URL] copy];
+        for (MRImageLoadToken *token in tokens) {
+            [token cancel];
+        }
+        [self.tokensByURL removeObjectForKey:URL];
+
         operation = [self.operations objectForKey:URL];
         [self.operations removeObjectForKey:URL];
-        [self.completions removeObjectForKey:URL];
     }
     [operation cancel];
 }
 
-- (void)finishLoadForURL:(NSString *)URL
-              generation:(NSUInteger)generation
-                   image:(UIImage *)image
-                   error:(NSError *)error {
-    NSArray *blocks = nil;
+- (void)trackToken:(MRImageLoadToken *)token forURL:(NSString *)URL {
+    NSMutableArray *tokens = [self.tokensByURL objectForKey:URL];
+    if (tokens == nil) {
+        tokens = [NSMutableArray array];
+        [self.tokensByURL setObject:tokens forKey:URL];
+    }
+    [tokens addObject:token];
+}
+
+- (void)deliverToken:(id)token image:(UIImage *)image error:(NSError *)error {
+    MRImageLoadToken *loadToken = (MRImageLoadToken *)token;
+    if (loadToken == nil) {
+        return;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @synchronized(self) {
+            NSMutableArray *tokens = [self.tokensByURL objectForKey:loadToken.URL];
+            if (tokens != nil) {
+                [tokens removeObjectIdenticalTo:loadToken];
+                if (tokens.count == 0) {
+                    [self.tokensByURL removeObjectForKey:loadToken.URL];
+                }
+            }
+        }
+
+        if (![loadToken claimDelivery]) {
+            return;
+        }
+        void (^completion)(UIImage *, NSError *) = loadToken.completion;
+        if (completion != nil) {
+            completion(image, error);
+        }
+    });
+}
+
+- (void)finishOperation:(MRImageLoadOperation *)operation
+                    URL:(NSString *)URL
+                  image:(UIImage *)image
+                  error:(NSError *)error {
+    NSArray *tokens = nil;
     @synchronized(self) {
-        NSNumber *current = [self.generations objectForKey:URL];
-        if (current == nil || [current unsignedIntegerValue] != generation) {
+        // A cancelled operation may have already been replaced by a newer load
+        // for the same URL; the stale finisher must not touch that load.
+        if ([self.operations objectForKey:URL] != operation) {
             return;
         }
         [self.operations removeObjectForKey:URL];
-        blocks = [[self.completions objectForKey:URL] copy];
-        [self.completions removeObjectForKey:URL];
+        tokens = [operation.tokens copy];
+        [operation.tokens removeAllObjects];
     }
 
-    for (id stored in blocks) {
-        void (^block)(UIImage *, NSError *) = (void (^)(UIImage *, NSError *))stored;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            BOOL deliver = NO;
-            @synchronized(self) {
-                NSNumber *latest = [self.generations objectForKey:URL];
-                deliver = (latest != nil && [latest unsignedIntegerValue] == generation);
-            }
-            if (deliver) {
-                block(image, error);
-            }
-        });
+    for (MRImageLoadToken *token in tokens) {
+        [self deliverToken:token image:image error:error];
     }
 }
 

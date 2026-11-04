@@ -49,14 +49,13 @@ static UIImage *MRPosterPlaceholderImage(void) {
 }
 
 @implementation MRPosterImageView {
-    NSUInteger _generation;
     NSString *_currentURL;
+    id _loadToken;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        _generation = 0;
         self.backgroundColor = [UIColor colorWithWhite:0.91 alpha:1.0];
         self.contentMode = UIViewContentModeScaleAspectFill;
         self.clipsToBounds = YES;
@@ -83,21 +82,23 @@ static UIImage *MRPosterPlaceholderImage(void) {
 }
 
 - (void)setImageURL:(NSString *)URL {
-    _generation += 1;
-    NSUInteger token = _generation;
-
-    if (_currentURL.length > 0) {
-        [_imageCache cancelLoadForURL:_currentURL];
+    id previousToken = _loadToken;
+    _loadToken = nil;
+    _currentURL = nil;
+    if (previousToken != nil) {
+        [_imageCache cancelLoad:previousToken];
     }
-    _currentURL = [URL copy];
 
     if (URL.length == 0 || _imageCache == nil) {
         self.image = MRPosterPlaceholderImage();
         return;
     }
 
+    _currentURL = [URL copy];
+
     UIImage *cached = [_imageCache cachedImageForURL:URL];
     if (cached != nil) {
+        _currentURL = nil;
         self.image = cached;
         return;
     }
@@ -105,27 +106,39 @@ static UIImage *MRPosterPlaceholderImage(void) {
     self.image = MRPosterPlaceholderImage();
 
     __weak MRPosterImageView *weakSelf = self;
-    [_imageCache loadImageForURL:URL completion:^(UIImage *image, NSError *error) {
+    __block id loadToken = nil;
+    loadToken = [_imageCache loadImageForURL:URL completion:^(UIImage *image, NSError *error) {
         MRPosterImageView *strongSelf = weakSelf;
         if (strongSelf == nil) {
             return;
         }
-        if (strongSelf->_generation != token ||
-            ![strongSelf->_currentURL isEqualToString:URL]) {
+        if (strongSelf->_loadToken != loadToken) {
             return;
         }
+        strongSelf->_loadToken = nil;
+        strongSelf->_currentURL = nil;
         strongSelf.image = image != nil ? image : MRPosterPlaceholderImage();
     }];
+    _loadToken = loadToken;
 }
 
 - (void)cancelLoading {
-    _generation += 1;
-    NSString *URL = _currentURL;
+    id token = _loadToken;
+    _loadToken = nil;
     _currentURL = nil;
-    if (URL.length > 0) {
-        [_imageCache cancelLoadForURL:URL];
+    if (token != nil) {
+        [_imageCache cancelLoad:token];
     }
     self.image = MRPosterPlaceholderImage();
+}
+
+- (void)dealloc {
+    id token = _loadToken;
+    _loadToken = nil;
+    _currentURL = nil;
+    if (token != nil) {
+        [_imageCache cancelLoad:token];
+    }
 }
 
 @end
