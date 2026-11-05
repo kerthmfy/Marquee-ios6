@@ -1,9 +1,9 @@
-Package: com.marquee.app
+Package: com.kerthmfy.marquee.app
 Name: Marquee
 Version: 1.0
 Architecture: iphoneos-arm
 Description: A standalone Simkl client for iOS 6.
-Maintainer: Marquee
-Author: Marquee
+Maintainer: kerthmfy
+Author: kerthmfy
 Section: Entertainment
 Depends: firmware (>= 6.0)

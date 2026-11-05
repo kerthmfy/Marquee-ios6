@@ -473,21 +473,91 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 {
     static UIImage *image = nil;
     if (!image) {
-        image = MRVerticalGradientImage(@[
-            MRColor(77, 77, 79),
-            MRColor(48, 48, 49),
-            MRColor(28, 28, 31)
-        ], MRTabBarHeight, 0.55);
+        // The bar is always 320 pt wide in this portrait-only iPhone app.
+        CGFloat width = 320.0;
+        CGSize size = CGSizeMake(width, MRTabBarHeight);
+        UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
+        CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+        NSArray *colors = @[
+            (__bridge id)MRColor(84, 84, 87).CGColor,
+            (__bridge id)MRColor(50, 50, 53).CGColor,
+            (__bridge id)MRColor(29, 29, 32).CGColor
+        ];
+        CGFloat locations[] = { 0.0, 0.52, 1.0 };
+        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+        CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                            (__bridge CFArrayRef)colors,
+                                                            locations);
+        CGContextDrawLinearGradient(ctx, gradient,
+                                    CGPointMake(0.0, 0.0),
+                                    CGPointMake(0.0, MRTabBarHeight),
+                                    0);
+        CGGradientRelease(gradient);
+        CGColorSpaceRelease(space);
+
+        // iOS 6 store bars had a hard dark top edge and a one-pixel inner
+        // highlight instead of a soft floating edge.
+        [[UIColor colorWithWhite:0.0 alpha:0.88] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, 1.0));
+        [[UIColor colorWithWhite:1.0 alpha:0.10] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, 1.0, width, 1.0));
+
+        // Faint brushed-metal columns keep the bar from reading as flat black.
+        for (NSUInteger x = 0; x < (NSUInteger)width; x += 2) {
+            CGFloat alpha = (x % 4 == 0) ? 0.020 : 0.010;
+            [[UIColor colorWithWhite:1.0 alpha:alpha] setFill];
+            CGContextFillRect(ctx, CGRectMake((CGFloat)x, 2.0, 1.0,
+                                              MRTabBarHeight - 2.0));
+        }
+
+        image = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
     }
     return image;
 }
 
 + (UIImage *)tabSelectionImage
 {
-    // A clear 1x1 indicator suppresses iOS 6's default glass selection capsule.
-    UIGraphicsBeginImageContextWithOptions(CGSizeMake(1.0, 1.0), NO, 0.0);
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
+    // The iOS 6 Music bar lifts the selected item with a lighter charcoal
+    // panel. The app has four tabs, so each selection is one quarter wide.
+    static UIImage *image = nil;
+    if (!image) {
+        CGFloat width = 320.0 / 4.0;
+        CGSize size = CGSizeMake(width, MRTabBarHeight);
+        UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
+        CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+        NSArray *colors = @[
+            (__bridge id)MRColor(104, 104, 108).CGColor,
+            (__bridge id)MRColor(62, 62, 66).CGColor,
+            (__bridge id)MRColor(38, 38, 42).CGColor
+        ];
+        CGFloat locations[] = { 0.0, 0.55, 1.0 };
+        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+        CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                            (__bridge CFArrayRef)colors,
+                                                            locations);
+        CGContextDrawLinearGradient(ctx, gradient,
+                                    CGPointMake(0.0, 0.0),
+                                    CGPointMake(0.0, MRTabBarHeight),
+                                    0);
+        CGGradientRelease(gradient);
+        CGColorSpaceRelease(space);
+
+        [[UIColor colorWithWhite:0.0 alpha:0.78] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, 1.0));
+        [[UIColor colorWithWhite:1.0 alpha:0.18] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, 1.0, width, 1.0));
+        [[UIColor colorWithWhite:0.0 alpha:0.55] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, MRTabBarHeight - 1.0, width, 1.0));
+        [[UIColor colorWithWhite:0.0 alpha:0.72] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 1.0, MRTabBarHeight));
+        CGContextFillRect(ctx, CGRectMake(width - 1.0, 0.0, 1.0, MRTabBarHeight));
+
+        image = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+    }
     return image;
 }
 
@@ -666,7 +736,7 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     [item setFinishedSelectedImage:selected withFinishedUnselectedImage:normal];
 
     NSDictionary *ordinary = @{
-        UITextAttributeTextColor: MRColor(168, 168, 173),
+        UITextAttributeTextColor: MRColor(190, 190, 195),
         UITextAttributeTextShadowColor: [UIColor colorWithWhite:0.0 alpha:0.80],
         UITextAttributeTextShadowOffset: [NSValue valueWithUIOffset:UIOffsetMake(0.0, -1.0)],
         UITextAttributeFont: [self tabTitleFont]

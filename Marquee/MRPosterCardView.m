@@ -80,7 +80,7 @@ static const CGFloat MRPosterCardMetaHeight = 14.0;
         return;
     }
 
-    [_posterView setImagePath:item.poster size:@"_cm"];
+    [_posterView setImagePath:item.poster size:@"_m"];
     _titleLabel.text = item.title;
 
     NSString *type = MRMediaTypeDisplayName(item.type);

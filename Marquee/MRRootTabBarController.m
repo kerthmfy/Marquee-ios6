@@ -8,6 +8,15 @@
 
 @implementation MRRootTabBarController
 
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
+    // UITabBar can finish creating its item views after -init. Reapply the
+    // chrome once the bar is on screen so the iOS 6 selection panel and icons
+    // are present on the first launch.
+    [MRAppearance styleTabBar:self.tabBar];
+}
+
 - (id)init
 {
     self = [super init];
