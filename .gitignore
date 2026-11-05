@@ -6,3 +6,5 @@ packages/
 *.deb
 build/
 /tmp/
+# Local learning notes; kept out of the published repo.
+docs/lessons/
