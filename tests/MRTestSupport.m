@@ -4,6 +4,7 @@
 //
 
 #import "MRTestSupport.h"
+#import "MRTokenSession.h"
 
 static NSUInteger MRFailureCount = 0;
 static NSString *MRCurrentSuite = @"";
@@ -167,6 +168,54 @@ BOOL MRRunUntil(BOOL (^condition)(void), NSTimeInterval timeout) {
             }
         }
     }
+}
+
+@end
+
+@implementation MRMemoryTokenStore {
+    MRTokenSession *_storedSession;
+}
+
+- (MRTokenSession *)session {
+    @synchronized(self) {
+        return _storedSession;
+    }
+}
+
+- (MRTokenSession *)loadSession:(NSError **)error {
+    if (error != NULL) {
+        *error = nil;
+    }
+    return self.session;
+}
+
+- (BOOL)saveSession:(MRTokenSession *)session error:(NSError **)error {
+    if (self.failSave) {
+        if (error != NULL) {
+            *error = [NSError errorWithDomain:@"MRMemoryTokenStore"
+                                         code:1
+                                     userInfo:@{ NSLocalizedDescriptionKey:
+                                                     @"Could not securely store your session" }];
+        }
+        return NO;
+    }
+    @synchronized(self) {
+        _storedSession = session;
+    }
+    if (error != NULL) {
+        *error = nil;
+    }
+    return YES;
+}
+
+- (BOOL)clearSession:(NSError **)error {
+    @synchronized(self) {
+        _storedSession = nil;
+    }
+    if (error != NULL) {
+        *error = nil;
+    }
+    return YES;
 }
 
 @end

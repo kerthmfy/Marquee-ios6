@@ -16,6 +16,8 @@ void MRRunQuotaTrackerTests(void);
 void MRRunDiagnosticsTests(void);
 void MRRunAPIClientPublicTests(void);
 void MRRunPublicFeedBuilderTests(void);
+void MRRunDeviceFlowTests(void);
+void MRRunTokenStoreTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -48,6 +50,12 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"public feed builder");
         MRRunPublicFeedBuilderTests();
+
+        MRTestBeginSuite(@"token store");
+        MRRunTokenStoreTests();
+
+        MRTestBeginSuite(@"device flow");
+        MRRunDeviceFlowTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {

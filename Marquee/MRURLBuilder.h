@@ -10,6 +10,10 @@
 // order so cache keys and diagnostics stay stable.
 @interface MRURLBuilder : NSObject
 
+// Encodes parameters for an application/x-www-form-urlencoded body. Keys are
+// sorted so request bodies stay deterministic.
++ (NSString *)formEncodedStringForParameters:(NSDictionary *)parameters;
+
 + (NSString *)apiURLForPath:(NSString *)path query:(NSDictionary *)query;
 + (NSString *)dataURLForPath:(NSString *)path query:(NSDictionary *)query;
 + (NSString *)searchURLWithQuery:(NSString *)query page:(NSUInteger)page;

@@ -11,18 +11,22 @@
 #import "MRAPIRequestOperation.h"
 #import "MRAppearance.h"
 #import "MRClock.h"
+#import "MRConnectViewController.h"
 #import "MRDiagnostics.h"
 #import "MRError.h"
 #import "MRFeedSection.h"
 #import "MRHeroView.h"
 #import "MRHTTPClient.h"
 #import "MRImageCache.h"
+#import "MRKeychainTokenStore.h"
 #import "MRMediaItem.h"
 #import "MRPlaceholderView.h"
 #import "MRPosterCardView.h"
 #import "MRPublicFeedBuilder.h"
 #import "MRResponseCache.h"
 #import "MRRowHeaderView.h"
+#import "MRSimklAuth.h"
+#import "MRTokenSession.h"
 
 static const CGFloat MRForYouRowHeight = 210.0;
 static const CGFloat MRForYouCardGap = 8.0;
@@ -239,6 +243,7 @@ static const CGFloat MRForYouCardWidth = 100.0;
 @property (nonatomic, strong) UIView *bannerView;
 @property (nonatomic, strong) MRForYouSkeletonView *skeletonView;
 @property (nonatomic, strong) MRPlaceholderView *retryView;
+@property (nonatomic, strong) MRSimklAuth *auth;
 @end
 
 @implementation MRForYouViewController
@@ -260,6 +265,9 @@ static const CGFloat MRForYouCardWidth = 100.0;
                                                             NSUserDomainMask,
                                                             YES) objectAtIndex:0];
     NSString *base = [caches stringByAppendingPathComponent:@"Marquee"];
+    MRDiagnostics *diagnostics = [[MRDiagnostics alloc]
+        initWithDirectory:[base stringByAppendingPathComponent:@"Diagnostics"]];
+    MRSystemClock *clock = [[MRSystemClock alloc] init];
 
     MRAPIClient *client = [[MRAPIClient alloc]
         initWithHTTPClient:[MRAPIRequestOperation sharedClient]
@@ -267,11 +275,17 @@ static const CGFloat MRForYouCardWidth = 100.0;
              responseCache:[[MRResponseCache alloc]
                             initWithDirectory:[base stringByAppendingPathComponent:@"Responses"]]
               quotaTracker:nil
-               diagnostics:[[MRDiagnostics alloc]
-                            initWithDirectory:[base stringByAppendingPathComponent:@"Diagnostics"]]
-                     clock:[[MRSystemClock alloc] init]];
+               diagnostics:diagnostics
+                     clock:clock];
 
-    return [self initWithAPIClient:client imageCache:[[MRImageCache alloc] init]];
+    self = [self initWithAPIClient:client imageCache:[[MRImageCache alloc] init]];
+    if (self) {
+        _auth = [[MRSimklAuth alloc] initWithHTTPClient:[MRAPIRequestOperation sharedClient]
+                                            tokenStore:[[MRKeychainTokenStore alloc] init]
+                                           diagnostics:diagnostics
+                                                 clock:clock];
+    }
+    return self;
 }
 
 - (void)viewDidLoad {
@@ -323,13 +337,23 @@ static const CGFloat MRForYouCardWidth = 100.0;
 
     [self buildBanner];
 
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(authDidChange:)
+                                                 name:MRAuthDidChangeNotification
+                                               object:nil];
+
     [self loadFeed];
 }
 
 - (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     id<MRHTTPTask> task = self.trendingTask;
     self.trendingTask = nil;
     [task cancel];
+}
+
+- (void)authDidChange:(NSNotification *)notification {
+    [self.tableView reloadData];
 }
 
 - (void)buildBanner {
@@ -442,14 +466,25 @@ static const CGFloat MRForYouCardWidth = 100.0;
     [self loadFeed];
 }
 
-- (void)showConnectAlert {
-    UIAlertView *alert = [[UIAlertView alloc]
-                          initWithTitle:@"Connect Simkl"
-                                message:@"Simkl sign-in arrives in the next step."
-                               delegate:nil
-                      cancelButtonTitle:@"OK"
-                      otherButtonTitles:nil];
-    [alert show];
+- (MRSimklAuth *)authForConnect {
+    if (self.auth == nil) {
+        // Fallback for a controller created through the designated initializer
+        // before Task 9 injects the app-wide auth service.
+        self.auth = [[MRSimklAuth alloc] initWithHTTPClient:[MRAPIRequestOperation sharedClient]
+                                                 tokenStore:[[MRKeychainTokenStore alloc] init]
+                                                diagnostics:[[MRDiagnostics alloc] initWithDirectory:nil]
+                                                      clock:[[MRSystemClock alloc] init]];
+    }
+    return self.auth;
+}
+
+- (void)showConnect {
+    MRConnectViewController *connect =
+        [[MRConnectViewController alloc] initWithAuth:[self authForConnect]];
+    UINavigationController *navigation =
+        [[UINavigationController alloc] initWithRootViewController:connect];
+    [MRAppearance styleNavigationBar:navigation.navigationBar];
+    [self presentViewController:navigation animated:YES completion:nil];
 }
 
 #pragma mark - UITableViewDataSource
@@ -474,13 +509,27 @@ static const CGFloat MRForYouCardWidth = 100.0;
             cell = [[MRForYouHeroCell alloc] initWithStyle:UITableViewCellStyleDefault
                                            reuseIdentifier:heroIdentifier];
         }
-        [cell.heroView configureWithTitle:section.title
-                                 subtitle:section.subtitle
-                              buttonTitle:@"Sign In"];
+        BOOL signedIn = self.auth.isSignedIn;
+        NSString *title = section.title;
+        NSString *subtitle = section.subtitle;
+        NSString *buttonTitle = @"Sign In";
         __weak MRForYouViewController *weakSelf = self;
-        cell.heroView.actionHandler = ^{
-            [weakSelf showConnectAlert];
-        };
+        if (signedIn) {
+            NSString *name = self.auth.session.accountName;
+            title = name.length > 0
+                ? [NSString stringWithFormat:@"Connected as %@", name]
+                : @"Connected to Simkl";
+            subtitle = @"Your Simkl account is connected.";
+            buttonTitle = @"";
+            cell.heroView.actionHandler = nil;
+        } else {
+            cell.heroView.actionHandler = ^{
+                [weakSelf showConnect];
+            };
+        }
+        [cell.heroView configureWithTitle:title
+                                 subtitle:subtitle
+                              buttonTitle:buttonTitle];
         return cell;
     }
 

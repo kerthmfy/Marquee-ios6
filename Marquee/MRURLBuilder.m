@@ -97,6 +97,24 @@ static NSString *MRImageProxyURL(NSString *sourceURL) {
 
 @implementation MRURLBuilder
 
++ (NSString *)formEncodedStringForParameters:(NSDictionary *)parameters {
+    NSMutableArray *keys = [NSMutableArray array];
+    for (id key in parameters) {
+        if ([key isKindOfClass:[NSString class]]) {
+            [keys addObject:key];
+        }
+    }
+    [keys sortUsingSelector:@selector(compare:)];
+
+    NSMutableArray *pairs = [NSMutableArray array];
+    for (NSString *key in keys) {
+        [pairs addObject:[NSString stringWithFormat:@"%@=%@",
+                          MRURLQueryEncode(key),
+                          MRURLQueryValue([parameters objectForKey:key])]];
+    }
+    return [pairs componentsJoinedByString:@"&"];
+}
+
 + (NSString *)apiURLForPath:(NSString *)path query:(NSDictionary *)query {
     return MRURLWithBaseAndQuery(MR_API_BASE, path, query);
 }

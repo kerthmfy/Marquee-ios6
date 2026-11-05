@@ -5,6 +5,9 @@
 
 #import <Foundation/Foundation.h>
 #import "MRClock.h"
+#import "MRTokenStore.h"
+
+@class MRTokenSession;
 
 // Assertions record a failure and print a diagnostic, but keep running so a
 // single run reports every problem it finds.
@@ -24,6 +27,15 @@ BOOL MRRunUntil(BOOL (^condition)(void), NSTimeInterval timeout);
 // fire-date order when -advanceBy: is called. No wall-clock time is used.
 @interface MRFakeClock : NSObject <MRClock>
 - (void)advanceBy:(NSTimeInterval)seconds;
+@end
+
+// A token store that keeps the session in memory. Used by the auth tests so
+// refresh and sign-out can be verified without touching Security.framework.
+@interface MRMemoryTokenStore : NSObject <MRTokenStore>
+
+@property (nonatomic, strong, readonly) MRTokenSession *session;
+@property (nonatomic, assign) BOOL failSave;
+
 @end
 
 // main.m uses these to report a non-zero exit status.
