@@ -17,6 +17,10 @@ Marquee_RESOURCE_FILES = Marquee/Resources/Info.plist \
 	Marquee/Resources/Default.png \
 	Marquee/Resources/Default@2x.png \
 	Marquee/Resources/Default-568h@2x.png \
+	Marquee/Resources/Default-Portrait.png \
+	Marquee/Resources/Default-Portrait@2x.png \
+	Marquee/Resources/Default-Landscape.png \
+	Marquee/Resources/Default-Landscape@2x.png \
 	Marquee/Resources/SimklBadge.png
 
 include $(THEOS_MAKE_PATH)/application.mk

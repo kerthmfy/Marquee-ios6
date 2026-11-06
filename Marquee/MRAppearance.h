@@ -39,8 +39,8 @@
 
 // Chrome images
 + (UIImage *)navigationBarImage;
-+ (UIImage *)tabBarImage;
-+ (UIImage *)tabSelectionImage;
++ (UIImage *)tabBarImageForWidth:(CGFloat)width;
++ (UIImage *)tabSelectionImageForWidth:(CGFloat)width itemCount:(NSInteger)count;
 + (UIImage *)pinstripeImage;
 + (UIImage *)actionButtonImage;
 + (UIImage *)dangerButtonImage;

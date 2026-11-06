@@ -7,6 +7,7 @@
 //
 
 #import "MRAppearance.h"
+#import "MRLayout.h"
 #import "MRTabBarChromeView.h"
 
 #import <math.h>
@@ -360,7 +361,10 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 
 - (id)initWithTitle:(NSString *)title pinstripe:(BOOL)pinstripe
 {
-    self = [super initWithFrame:CGRectMake(0.0, 0.0, 320.0, 32.0)];
+    MRDeviceClass device =
+        [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
+    self = [super initWithFrame:CGRectMake(0.0, 0.0,
+        [MRLayout contentMaxWidthForDeviceClass:device], 32.0)];
     if (self) {
         self.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         _pinstripe = pinstripe;
@@ -389,8 +393,11 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 - (void)layoutSubviews
 {
     [super layoutSubviews];
-    self.titleLabel.frame = CGRectMake(12.0, 9.0,
-                                       CGRectGetWidth(self.bounds) - 24.0, 17.0);
+    MRDeviceClass device =
+        [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
+    CGFloat inset = [MRLayout rowSideInsetForDeviceClass:device];
+    self.titleLabel.frame = CGRectMake(inset, 9.0,
+                                       CGRectGetWidth(self.bounds) - inset * 2.0, 17.0);
 }
 
 - (void)drawRect:(CGRect)rect
@@ -469,95 +476,96 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     return image;
 }
 
-+ (UIImage *)tabBarImage
++ (UIImage *)tabBarImageForWidth:(CGFloat)width
 {
-    static UIImage *image = nil;
-    if (!image) {
-        // The bar is always 320 pt wide in this portrait-only iPhone app.
-        CGFloat width = 320.0;
-        CGSize size = CGSizeMake(width, MRTabBarHeight);
-        UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
-        CGContextRef ctx = UIGraphicsGetCurrentContext();
-
-        NSArray *colors = @[
-            (__bridge id)MRColor(84, 84, 87).CGColor,
-            (__bridge id)MRColor(50, 50, 53).CGColor,
-            (__bridge id)MRColor(29, 29, 32).CGColor
-        ];
-        CGFloat locations[] = { 0.0, 0.52, 1.0 };
-        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-        CGGradientRef gradient = CGGradientCreateWithColors(space,
-                                                            (__bridge CFArrayRef)colors,
-                                                            locations);
-        CGContextDrawLinearGradient(ctx, gradient,
-                                    CGPointMake(0.0, 0.0),
-                                    CGPointMake(0.0, MRTabBarHeight),
-                                    0);
-        CGGradientRelease(gradient);
-        CGColorSpaceRelease(space);
-
-        // iOS 6 store bars had a hard dark top edge and a one-pixel inner
-        // highlight instead of a soft floating edge.
-        [[UIColor colorWithWhite:0.0 alpha:0.88] setFill];
-        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, 1.0));
-        [[UIColor colorWithWhite:1.0 alpha:0.10] setFill];
-        CGContextFillRect(ctx, CGRectMake(0.0, 1.0, width, 1.0));
-
-        // Faint brushed-metal columns keep the bar from reading as flat black.
-        for (NSUInteger x = 0; x < (NSUInteger)width; x += 2) {
-            CGFloat alpha = (x % 4 == 0) ? 0.020 : 0.010;
-            [[UIColor colorWithWhite:1.0 alpha:alpha] setFill];
-            CGContextFillRect(ctx, CGRectMake((CGFloat)x, 2.0, 1.0,
-                                              MRTabBarHeight - 2.0));
-        }
-
-        image = UIGraphicsGetImageFromCurrentImageContext();
-        UIGraphicsEndImageContext();
+    if (width <= 0.0) {
+        return nil;
     }
+
+    CGSize size = CGSizeMake(width, MRTabBarHeight);
+    UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    NSArray *colors = @[
+        (__bridge id)MRColor(84, 84, 87).CGColor,
+        (__bridge id)MRColor(50, 50, 53).CGColor,
+        (__bridge id)MRColor(29, 29, 32).CGColor
+    ];
+    CGFloat locations[] = { 0.0, 0.52, 1.0 };
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                        (__bridge CFArrayRef)colors,
+                                                        locations);
+    CGContextDrawLinearGradient(ctx, gradient,
+                                CGPointMake(0.0, 0.0),
+                                CGPointMake(0.0, MRTabBarHeight),
+                                0);
+    CGGradientRelease(gradient);
+    CGColorSpaceRelease(space);
+
+    // iOS 6 store bars had a hard dark top edge and a one-pixel inner
+    // highlight instead of a soft floating edge.
+    [[UIColor colorWithWhite:0.0 alpha:0.88] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, 1.0));
+    [[UIColor colorWithWhite:1.0 alpha:0.10] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 1.0, width, 1.0));
+
+    // Faint brushed-metal columns keep the bar from reading as flat black.
+    for (NSUInteger x = 0; x < (NSUInteger)width; x += 2) {
+        CGFloat alpha = (x % 4 == 0) ? 0.020 : 0.010;
+        [[UIColor colorWithWhite:1.0 alpha:alpha] setFill];
+        CGContextFillRect(ctx, CGRectMake((CGFloat)x, 2.0, 1.0,
+                                          MRTabBarHeight - 2.0));
+    }
+
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
     return image;
 }
 
-+ (UIImage *)tabSelectionImage
++ (UIImage *)tabSelectionImageForWidth:(CGFloat)width itemCount:(NSInteger)count
 {
     // The iOS 6 Music bar lifts the selected item with a lighter charcoal
-    // panel. The app has four tabs, so each selection is one quarter wide.
-    static UIImage *image = nil;
-    if (!image) {
-        CGFloat width = 320.0 / 4.0;
-        CGSize size = CGSizeMake(width, MRTabBarHeight);
-        UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
-        CGContextRef ctx = UIGraphicsGetCurrentContext();
-
-        NSArray *colors = @[
-            (__bridge id)MRColor(104, 104, 108).CGColor,
-            (__bridge id)MRColor(62, 62, 66).CGColor,
-            (__bridge id)MRColor(38, 38, 42).CGColor
-        ];
-        CGFloat locations[] = { 0.0, 0.55, 1.0 };
-        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-        CGGradientRef gradient = CGGradientCreateWithColors(space,
-                                                            (__bridge CFArrayRef)colors,
-                                                            locations);
-        CGContextDrawLinearGradient(ctx, gradient,
-                                    CGPointMake(0.0, 0.0),
-                                    CGPointMake(0.0, MRTabBarHeight),
-                                    0);
-        CGGradientRelease(gradient);
-        CGColorSpaceRelease(space);
-
-        [[UIColor colorWithWhite:0.0 alpha:0.78] setFill];
-        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, 1.0));
-        [[UIColor colorWithWhite:1.0 alpha:0.18] setFill];
-        CGContextFillRect(ctx, CGRectMake(0.0, 1.0, width, 1.0));
-        [[UIColor colorWithWhite:0.0 alpha:0.55] setFill];
-        CGContextFillRect(ctx, CGRectMake(0.0, MRTabBarHeight - 1.0, width, 1.0));
-        [[UIColor colorWithWhite:0.0 alpha:0.72] setFill];
-        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 1.0, MRTabBarHeight));
-        CGContextFillRect(ctx, CGRectMake(width - 1.0, 0.0, 1.0, MRTabBarHeight));
-
-        image = UIGraphicsGetImageFromCurrentImageContext();
-        UIGraphicsEndImageContext();
+    // panel. Its width follows the current bar width and item count.
+    CGFloat selectionWidth =
+        [MRLayout tabBarSelectionWidthForWidth:width itemCount:count];
+    if (selectionWidth <= 0.0) {
+        return nil;
     }
+
+    CGSize size = CGSizeMake(selectionWidth, MRTabBarHeight);
+    UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    NSArray *colors = @[
+        (__bridge id)MRColor(104, 104, 108).CGColor,
+        (__bridge id)MRColor(62, 62, 66).CGColor,
+        (__bridge id)MRColor(38, 38, 42).CGColor
+    ];
+    CGFloat locations[] = { 0.0, 0.55, 1.0 };
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                        (__bridge CFArrayRef)colors,
+                                                        locations);
+    CGContextDrawLinearGradient(ctx, gradient,
+                                CGPointMake(0.0, 0.0),
+                                CGPointMake(0.0, MRTabBarHeight),
+                                0);
+    CGGradientRelease(gradient);
+    CGColorSpaceRelease(space);
+
+    [[UIColor colorWithWhite:0.0 alpha:0.78] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 0.0, selectionWidth, 1.0));
+    [[UIColor colorWithWhite:1.0 alpha:0.18] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 1.0, selectionWidth, 1.0));
+    [[UIColor colorWithWhite:0.0 alpha:0.55] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, MRTabBarHeight - 1.0, selectionWidth, 1.0));
+    [[UIColor colorWithWhite:0.0 alpha:0.72] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 1.0, MRTabBarHeight));
+    CGContextFillRect(ctx, CGRectMake(selectionWidth - 1.0, 0.0, 1.0, MRTabBarHeight));
+
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
     return image;
 }
 
@@ -757,8 +765,16 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
         return;
     }
 
-    [tabBar setBackgroundImage:[self tabBarImage]];
-    tabBar.selectionIndicatorImage = [self tabSelectionImage];
+    CGFloat width = CGRectGetWidth(tabBar.bounds);
+    UIImage *barImage = [self tabBarImageForWidth:width];
+    if (barImage != nil) {
+        [tabBar setBackgroundImage:barImage];
+    }
+    UIImage *selectionImage =
+        [self tabSelectionImageForWidth:width itemCount:(NSInteger)tabBar.items.count];
+    if (selectionImage != nil) {
+        tabBar.selectionIndicatorImage = selectionImage;
+    }
 
     NSArray *items = tabBar.items;
     for (NSUInteger i = 0; i < items.count; i++) {

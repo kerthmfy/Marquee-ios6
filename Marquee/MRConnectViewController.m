@@ -8,6 +8,7 @@
 #import "MRAppearance.h"
 #import "MRDeviceCode.h"
 #import "MRError.h"
+#import "MRLayout.h"
 #import "MRSimklAuth.h"
 #import "MRTokenSession.h"
 
@@ -120,25 +121,28 @@
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
 
+    MRDeviceClass device =
+        [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
     CGFloat width = CGRectGetWidth(self.view.bounds);
-    CGFloat margin = 24.0;
-    CGFloat contentWidth = width - margin * 2.0;
+    CGFloat contentWidth = MIN(width - 48.0,
+        [MRLayout modalContentMaxWidthForDeviceClass:device]);
+    CGFloat x = (width - contentWidth) / 2.0;
     CGFloat y = 24.0;
 
-    self.codeLabel.frame = CGRectMake(margin, y, contentWidth, 48.0);
+    self.codeLabel.frame = CGRectMake(x, y, contentWidth, 48.0);
     y += 48.0 + 8.0;
-    self.instructionLabel.frame = CGRectMake(margin, y, contentWidth, 36.0);
+    self.instructionLabel.frame = CGRectMake(x, y, contentWidth, 36.0);
     y += 36.0 + 20.0;
-    self.openButton.frame = CGRectMake(margin, y, contentWidth, 42.0);
+    self.openButton.frame = CGRectMake(x, y, contentWidth, 42.0);
     y += 42.0 + 10.0;
-    self.codeCopyButton.frame = CGRectMake(margin, y, contentWidth, 42.0);
+    self.codeCopyButton.frame = CGRectMake(x, y, contentWidth, 42.0);
     y += 42.0 + 20.0;
 
-    self.spinner.frame = CGRectMake((width - 20.0) / 2.0, y, 20.0, 20.0);
+    self.spinner.frame = CGRectMake(x + (contentWidth - 20.0) / 2.0, y, 20.0, 20.0);
     y += 20.0 + 10.0;
-    self.statusLabel.frame = CGRectMake(margin, y, contentWidth, 44.0);
+    self.statusLabel.frame = CGRectMake(x, y, contentWidth, 44.0);
     y += 44.0 + 12.0;
-    self.retryButton.frame = CGRectMake(margin, y, contentWidth, 42.0);
+    self.retryButton.frame = CGRectMake(x, y, contentWidth, 42.0);
     y += 42.0 + 24.0;
 
     self.scrollView.contentSize = CGSizeMake(width, y);

@@ -167,6 +167,12 @@ int main(int argc, const char *argv[])
         ok = MRWriteAsset(directory, @"Default@2x.png", 640, 960, NO) && ok;
         ok = MRWriteAsset(directory, @"Default-568h@2x.png", 640, 1136, NO) && ok;
 
+        // iPad launch images
+        ok = MRWriteAsset(directory, @"Default-Portrait.png", 768, 1024, NO) && ok;
+        ok = MRWriteAsset(directory, @"Default-Portrait@2x.png", 1536, 2048, NO) && ok;
+        ok = MRWriteAsset(directory, @"Default-Landscape.png", 1024, 768, NO) && ok;
+        ok = MRWriteAsset(directory, @"Default-Landscape@2x.png", 2048, 1536, NO) && ok;
+
         return ok ? 0 : 1;
     }
 }

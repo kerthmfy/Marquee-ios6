@@ -6,9 +6,8 @@
 #import "MRRowHeaderView.h"
 
 #import "MRAppearance.h"
+#import "MRLayout.h"
 
-static const CGFloat MRRowHeaderHeight = 32.0;
-static const CGFloat MRRowHeaderLeftInset = 12.0;
 static const CGFloat MRRowHeaderBadgeSide = 16.0;
 
 @interface MRRowHeaderView ()
@@ -19,7 +18,11 @@ static const CGFloat MRRowHeaderBadgeSide = 16.0;
 @implementation MRRowHeaderView
 
 - (instancetype)initWithTitle:(NSString *)title showsSimklBadge:(BOOL)showsSimklBadge {
-    self = [super initWithFrame:CGRectMake(0.0, 0.0, 320.0, MRRowHeaderHeight)];
+    MRDeviceClass device =
+        [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
+    self = [super initWithFrame:CGRectMake(0.0, 0.0,
+        [MRLayout contentMaxWidthForDeviceClass:device],
+        [MRLayout rowHeaderHeightForDeviceClass:device])];
     if (self) {
         self.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         self.backgroundColor = [UIColor clearColor];
@@ -48,28 +51,35 @@ static const CGFloat MRRowHeaderBadgeSide = 16.0;
 - (void)layoutSubviews {
     [super layoutSubviews];
 
+    MRDeviceClass device =
+        [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
+    CGFloat inset = [MRLayout rowSideInsetForDeviceClass:device];
+    CGFloat height = CGRectGetHeight(self.bounds);
     CGFloat width = CGRectGetWidth(self.bounds);
     CGSize titleSize = [self.titleLabel.text sizeWithFont:self.titleLabel.font];
     CGFloat titleWidth = ceil(titleSize.width);
 
     if (self.badgeView != nil) {
-        CGFloat available = width - MRRowHeaderLeftInset * 2.0 -
+        CGFloat available = width - inset * 2.0 -
             MRRowHeaderBadgeSide - 6.0;
         if (titleWidth > available) {
             titleWidth = MAX(available, 0.0);
         }
     } else {
-        titleWidth = width - MRRowHeaderLeftInset * 2.0;
+        titleWidth = width - inset * 2.0;
     }
 
-    self.titleLabel.frame = CGRectMake(MRRowHeaderLeftInset,
-                                       9.0,
+    CGFloat titleY = device == MRDeviceClassTablet
+        ? (height - 17.0) / 2.0
+        : 9.0;
+    self.titleLabel.frame = CGRectMake(inset,
+                                       titleY,
                                        titleWidth,
                                        17.0);
 
     if (self.badgeView != nil) {
-        self.badgeView.frame = CGRectMake(MRRowHeaderLeftInset + titleWidth + 6.0,
-                                          8.0,
+        self.badgeView.frame = CGRectMake(inset + titleWidth + 6.0,
+                                          (height - MRRowHeaderBadgeSide) / 2.0,
                                           MRRowHeaderBadgeSide,
                                           MRRowHeaderBadgeSide);
     }

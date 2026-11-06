@@ -6,6 +6,7 @@
 #import "MRPlaceholderView.h"
 
 #import "MRAppearance.h"
+#import "MRLayout.h"
 
 @interface MRPlaceholderView ()
 @property (nonatomic, strong) UILabel *messageLabel;
@@ -17,7 +18,10 @@
 @implementation MRPlaceholderView
 
 - (instancetype)initWithMessage:(NSString *)message actionTitle:(NSString *)actionTitle {
-    self = [super initWithFrame:CGRectMake(0.0, 0.0, 320.0, 160.0)];
+    MRDeviceClass device =
+        [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
+    self = [super initWithFrame:CGRectMake(0.0, 0.0,
+        [MRLayout contentMaxWidthForDeviceClass:device], 160.0)];
     if (self) {
         self.backgroundColor = [UIColor clearColor];
         [MRAppearance styleCardView:self first:YES last:YES];

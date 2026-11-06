@@ -6,6 +6,11 @@
 #import "MRSearchViewController.h"
 #import "MRProfileViewController.h"
 
+@interface MRRootTabBarController ()
+@property (nonatomic, assign) CGFloat styledTabBarWidth;
+- (void)restyleTabBarIfNeeded;
+@end
+
 @implementation MRRootTabBarController
 
 - (void)viewDidAppear:(BOOL)animated
@@ -14,7 +19,24 @@
     // UITabBar can finish creating its item views after -init. Reapply the
     // chrome once the bar is on screen so the iOS 6 selection panel and icons
     // are present on the first launch.
+    [self restyleTabBarIfNeeded];
+}
+
+- (void)viewDidLayoutSubviews
+{
+    [super viewDidLayoutSubviews];
+    [self restyleTabBarIfNeeded];
+}
+
+- (void)restyleTabBarIfNeeded
+{
+    CGFloat width = CGRectGetWidth(self.tabBar.bounds);
+    if (width <= 0.0 || width == self.styledTabBarWidth) {
+        return;
+    }
+
     [MRAppearance styleTabBar:self.tabBar];
+    self.styledTabBarWidth = width;
 }
 
 - (id)init

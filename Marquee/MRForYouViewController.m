@@ -19,6 +19,7 @@
 #import "MRHTTPClient.h"
 #import "MRImageCache.h"
 #import "MRKeychainTokenStore.h"
+#import "MRLayout.h"
 #import "MRMediaItem.h"
 #import "MRPlaceholderView.h"
 #import "MRPosterCardView.h"
@@ -28,9 +29,14 @@
 #import "MRSimklAuth.h"
 #import "MRTokenSession.h"
 
-static const CGFloat MRForYouRowHeight = 210.0;
-static const CGFloat MRForYouCardGap = 8.0;
-static const CGFloat MRForYouCardWidth = 100.0;
+static MRDeviceClass MRForYouDeviceClass(void) {
+    return [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
+}
+
+static CGFloat MRForYouAvailableHeight(void) {
+    CGRect screen = [[UIScreen mainScreen] bounds];
+    return MAX(CGRectGetWidth(screen), CGRectGetHeight(screen));
+}
 
 #pragma mark - Skeleton
 
@@ -55,6 +61,9 @@ static const CGFloat MRForYouCardWidth = 100.0;
 
         _headerBlocks = [NSMutableArray array];
         _cardBlocks = [NSMutableArray array];
+        MRDeviceClass device = MRForYouDeviceClass();
+        CGFloat cardWidth = [MRLayout posterCardWidthForDeviceClass:device];
+        CGFloat imageHeight = [MRLayout posterCardImageHeightForDeviceClass:device];
         for (NSInteger row = 0; row < 2; row++) {
             UIView *header = [self blockView];
             header.frame = CGRectMake(12.0, 0.0, 140.0, 11.0);
@@ -63,7 +72,7 @@ static const CGFloat MRForYouCardWidth = 100.0;
 
             for (NSInteger column = 0; column < 3; column++) {
                 UIView *card = [self blockView];
-                card.frame = CGRectMake(0.0, 0.0, MRForYouCardWidth, 150.0);
+                card.frame = CGRectMake(0.0, 0.0, cardWidth, imageHeight);
                 [_cardBlocks addObject:card];
                 [self addSubview:card];
             }
@@ -87,28 +96,37 @@ static const CGFloat MRForYouCardWidth = 100.0;
 - (void)layoutSubviews {
     [super layoutSubviews];
 
+    MRDeviceClass device = MRForYouDeviceClass();
+    CGFloat heroInset = [MRLayout heroSideInsetForDeviceClass:device];
+    CGFloat rowInset = [MRLayout rowSideInsetForDeviceClass:device];
+    CGFloat cardWidth = [MRLayout posterCardWidthForDeviceClass:device];
+    CGFloat cardGap = [MRLayout posterCardGapForDeviceClass:device];
+    CGFloat imageHeight = [MRLayout posterCardImageHeightForDeviceClass:device];
+    CGFloat heroHeight =
+        [MRLayout heroHeightForDeviceClass:device
+                               orientation:[MRLayout orientationForSize:self.bounds.size]
+                           availableHeight:MRForYouAvailableHeight()];
     CGFloat width = CGRectGetWidth(self.bounds);
-    CGRect screen = [[UIScreen mainScreen] bounds];
-    CGFloat heroHeight = CGRectGetHeight(screen) < 568.0 ? 180.0 : 200.0;
 
-    self.heroBlock.frame = CGRectMake(8.0, 8.0, width - 16.0, heroHeight);
+    self.heroBlock.frame = CGRectMake(heroInset, heroInset,
+                                      width - heroInset * 2.0, heroHeight);
 
-    CGFloat y = 8.0 + heroHeight + 18.0;
+    CGFloat y = heroInset + heroHeight + 18.0;
     NSUInteger cardIndex = 0;
     for (NSUInteger row = 0; row < self.headerBlocks.count; row++) {
         UIView *header = [self.headerBlocks objectAtIndex:row];
-        header.frame = CGRectMake(12.0, y, 140.0, 11.0);
+        header.frame = CGRectMake(rowInset, y, 140.0, 11.0);
         y += 11.0 + 12.0;
 
         for (NSInteger column = 0; column < 3; column++) {
             UIView *card = [self.cardBlocks objectAtIndex:cardIndex];
-            card.frame = CGRectMake(12.0 + (CGFloat)column * (MRForYouCardWidth + MRForYouCardGap),
+            card.frame = CGRectMake(rowInset + (CGFloat)column * (cardWidth + cardGap),
                                     y,
-                                    MRForYouCardWidth,
-                                    150.0);
+                                    cardWidth,
+                                    imageHeight);
             cardIndex += 1;
         }
-        y += 150.0 + 18.0;
+        y += imageHeight + 18.0;
     }
 
     self.spinner.center = CGPointMake(width / 2.0, CGRectGetMidY(self.bounds));
@@ -139,10 +157,12 @@ static const CGFloat MRForYouCardWidth = 100.0;
 
 - (void)layoutSubviews {
     [super layoutSubviews];
-    self.heroView.frame = CGRectMake(8.0,
-                                     8.0,
-                                     CGRectGetWidth(self.contentView.bounds) - 16.0,
-                                     CGRectGetHeight(self.contentView.bounds) - 16.0);
+    MRDeviceClass device = MRForYouDeviceClass();
+    CGFloat inset = [MRLayout heroSideInsetForDeviceClass:device];
+    self.heroView.frame = CGRectMake(inset,
+                                     inset,
+                                     CGRectGetWidth(self.contentView.bounds) - inset * 2.0,
+                                     CGRectGetHeight(self.contentView.bounds) - inset * 2.0);
 }
 
 @end
@@ -193,23 +213,29 @@ static const CGFloat MRForYouCardWidth = 100.0;
     }
     [self.cards removeAllObjects];
 
-    CGFloat x = 12.0;
+    MRDeviceClass device = MRForYouDeviceClass();
+    CGFloat rowInset = [MRLayout rowSideInsetForDeviceClass:device];
+    CGFloat cardWidth = [MRLayout posterCardWidthForDeviceClass:device];
+    CGFloat cardGap = [MRLayout posterCardGapForDeviceClass:device];
+    CGFloat rowHeight = [MRLayout posterRowHeightForDeviceClass:device];
+
+    CGFloat x = rowInset;
     for (MRMediaItem *item in items) {
         MRPosterCardView *card =
             [[MRPosterCardView alloc] initWithImageCache:imageCache];
-        card.frame = CGRectMake(x, 0.0, MRForYouCardWidth, MRForYouRowHeight);
+        card.frame = CGRectMake(x, 0.0, cardWidth, rowHeight);
         card.tapHandler = tapHandler;
         [card setItem:item];
         [self.scrollView addSubview:card];
         [self.cards addObject:card];
-        x += MRForYouCardWidth + MRForYouCardGap;
+        x += cardWidth + cardGap;
     }
 
-    CGFloat contentWidth = x - MRForYouCardGap + 12.0;
+    CGFloat contentWidth = x - cardGap + rowInset;
     if (contentWidth < CGRectGetWidth(self.contentView.bounds)) {
         contentWidth = CGRectGetWidth(self.contentView.bounds);
     }
-    self.scrollView.contentSize = CGSizeMake(contentWidth, MRForYouRowHeight);
+    self.scrollView.contentSize = CGSizeMake(contentWidth, rowHeight);
     self.scrollView.contentOffset = CGPointZero;
 }
 
@@ -244,6 +270,7 @@ static const CGFloat MRForYouCardWidth = 100.0;
 @property (nonatomic, strong) MRForYouSkeletonView *skeletonView;
 @property (nonatomic, strong) MRPlaceholderView *retryView;
 @property (nonatomic, strong) MRSimklAuth *auth;
+@property (nonatomic, assign) CGFloat lastLayoutWidth;
 @end
 
 @implementation MRForYouViewController
@@ -320,12 +347,13 @@ static const CGFloat MRForYouCardWidth = 100.0;
     MRPlaceholderView *retry =
         [[MRPlaceholderView alloc] initWithMessage:@"Couldn't load Simkl trending."
                                         actionTitle:@"Retry"];
-    retry.frame = CGRectMake(0.0,
+    CGFloat retryWidth = MIN(CGRectGetWidth(self.view.bounds),
+        [MRLayout contentMaxWidthForDeviceClass:MRForYouDeviceClass()]);
+    retry.frame = CGRectMake((CGRectGetWidth(self.view.bounds) - retryWidth) / 2.0,
                              (CGRectGetHeight(self.view.bounds) - 180.0) / 2.0,
-                             CGRectGetWidth(self.view.bounds),
+                             retryWidth,
                              180.0);
-    retry.autoresizingMask = UIViewAutoresizingFlexibleWidth |
-        UIViewAutoresizingFlexibleTopMargin |
+    retry.autoresizingMask = UIViewAutoresizingFlexibleTopMargin |
         UIViewAutoresizingFlexibleBottomMargin;
     retry.hidden = YES;
     __weak MRForYouViewController *weakSelf = self;
@@ -345,6 +373,29 @@ static const CGFloat MRForYouCardWidth = 100.0;
     [self loadFeed];
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+
+    CGFloat width = CGRectGetWidth(self.view.bounds);
+    if (width <= 0.0 || width == self.lastLayoutWidth) {
+        return;
+    }
+
+    self.lastLayoutWidth = width;
+    [self layoutRetryView];
+    [self.tableView reloadData];
+}
+
+- (void)layoutRetryView {
+    CGFloat width = CGRectGetWidth(self.view.bounds);
+    CGFloat contentWidth = MIN(width,
+        [MRLayout contentMaxWidthForDeviceClass:MRForYouDeviceClass()]);
+    self.retryView.frame = CGRectMake((width - contentWidth) / 2.0,
+                                      (CGRectGetHeight(self.view.bounds) - 180.0) / 2.0,
+                                      contentWidth,
+                                      180.0);
+}
+
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     id<MRHTTPTask> task = self.trendingTask;
@@ -358,6 +409,7 @@ static const CGFloat MRForYouCardWidth = 100.0;
 
 - (void)buildBanner {
     CGFloat width = CGRectGetWidth(self.view.bounds);
+    CGFloat rowInset = [MRLayout rowSideInsetForDeviceClass:MRForYouDeviceClass()];
     UIView *banner = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, width, 32.0)];
     banner.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     banner.backgroundColor = [UIColor colorWithRed:247.0 / 255.0
@@ -368,8 +420,9 @@ static const CGFloat MRForYouCardWidth = 100.0;
     [self.view addSubview:banner];
     self.bannerView = banner;
 
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(12.0, 0.0,
-                                                               width - 84.0, 32.0)];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(rowInset, 0.0,
+                                                               width - rowInset * 2.0 - 60.0,
+                                                               32.0)];
     label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     label.backgroundColor = [UIColor clearColor];
     label.font = [UIFont systemFontOfSize:11.0];
@@ -382,7 +435,7 @@ static const CGFloat MRForYouCardWidth = 100.0;
     [banner addSubview:label];
 
     UIButton *retry = [UIButton buttonWithType:UIButtonTypeCustom];
-    retry.frame = CGRectMake(width - 72.0, 4.0, 60.0, 24.0);
+    retry.frame = CGRectMake(width - rowInset - 60.0, 4.0, 60.0, 24.0);
     retry.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
     retry.titleLabel.font = [UIFont boldSystemFontOfSize:11.0];
     [retry setTitle:@"Retry" forState:UIControlStateNormal];
@@ -483,6 +536,7 @@ static const CGFloat MRForYouCardWidth = 100.0;
         [[MRConnectViewController alloc] initWithAuth:[self authForConnect]];
     UINavigationController *navigation =
         [[UINavigationController alloc] initWithRootViewController:connect];
+    navigation.modalPresentationStyle = UIModalPresentationFullScreen;
     [MRAppearance styleNavigationBar:navigation.navigationBar];
     [self presentViewController:navigation animated:YES completion:nil];
 }
@@ -548,17 +602,24 @@ static const CGFloat MRForYouCardWidth = 100.0;
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
     MRFeedSection *section = [self.sections objectAtIndex:(NSUInteger)indexPath.section];
+    MRDeviceClass device = MRForYouDeviceClass();
     if (section.kind == MRFeedSectionKindHero) {
-        CGRect screen = [[UIScreen mainScreen] bounds];
-        CGFloat heroHeight = CGRectGetHeight(screen) < 568.0 ? 180.0 : 200.0;
-        return heroHeight + 16.0;
+        CGFloat heroInset = [MRLayout heroSideInsetForDeviceClass:device];
+        CGFloat heroHeight =
+            [MRLayout heroHeightForDeviceClass:device
+                                   orientation:[MRLayout orientationForSize:tableView.bounds.size]
+                               availableHeight:MRForYouAvailableHeight()];
+        return heroHeight + heroInset * 2.0;
     }
-    return MRForYouRowHeight;
+    return [MRLayout posterRowHeightForDeviceClass:device];
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
     MRFeedSection *feedSection = [self.sections objectAtIndex:(NSUInteger)section];
-    return feedSection.kind == MRFeedSectionKindHero ? 0.0 : 32.0;
+    if (feedSection.kind == MRFeedSectionKindHero) {
+        return 0.0;
+    }
+    return [MRLayout rowHeaderHeightForDeviceClass:MRForYouDeviceClass()];
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
