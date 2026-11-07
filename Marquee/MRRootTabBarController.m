@@ -53,7 +53,8 @@
         _environment = environment;
         MRForYouViewController *forYou =
             [[MRForYouViewController alloc] initWithEnvironment:environment];
-        MRLibraryViewController *library = [[MRLibraryViewController alloc] init];
+        MRLibraryViewController *library =
+            [[MRLibraryViewController alloc] initWithEnvironment:environment];
         MRSearchViewController *search = [[MRSearchViewController alloc] init];
         MRProfileViewController *profile = [[MRProfileViewController alloc] init];
 

@@ -21,6 +21,7 @@
 + (UIColor *)navigationTint;
 + (UIColor *)green;
 + (UIColor *)starEmpty;
++ (UIColor *)starColor;
 + (UIColor *)watchingColor;
 + (UIColor *)planColor;
 + (UIColor *)completedColor;
@@ -34,6 +35,9 @@
 + (UIFont *)smallFont;       // 11
 + (UIFont *)groupTitleFont;   // bold 11, uppercase grouped headers
 + (UIFont *)rowHeaderFont;    // bold 13, uppercase For You row headers
++ (UIFont *)cardTitleFont;    // bold 14, library and detail rows
++ (UIFont *)chipFont;         // bold 11, Library filter chips
++ (UIFont *)pillFont;         // bold 9, status pills
 + (UIFont *)navigationTitleFont;
 + (UIFont *)tabTitleFont;
 

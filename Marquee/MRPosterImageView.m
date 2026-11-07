@@ -72,6 +72,19 @@ static UIImage *MRPosterPlaceholderImage(void) {
     return self;
 }
 
+- (void)setImageCache:(MRImageCache *)imageCache {
+    if (imageCache == _imageCache) {
+        return;
+    }
+    id token = _loadToken;
+    _loadToken = nil;
+    _currentURL = nil;
+    if (token != nil) {
+        [_imageCache cancelLoad:token];
+    }
+    _imageCache = imageCache;
+}
+
 - (void)setImagePath:(NSString *)path size:(NSString *)size {
     if (path.length == 0) {
         [self setImageURL:nil];

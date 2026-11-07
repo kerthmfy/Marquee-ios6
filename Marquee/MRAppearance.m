@@ -434,6 +434,7 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 + (UIColor *)navigationTint  { return MRColor(41, 71, 107); }
 + (UIColor *)green           { return MRColor(0, 199, 83); }
 + (UIColor *)starEmpty       { return MRColor(209, 214, 219); }
++ (UIColor *)starColor        { return MRColor(191, 146, 22); }
 
 + (UIColor *)watchingColor   { return MRColor(45, 125, 210); }
 + (UIColor *)planColor       { return MRColor(138, 143, 152); }
@@ -459,6 +460,9 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 + (UIFont *)smallFont           { return [UIFont systemFontOfSize:11.0]; }
 + (UIFont *)groupTitleFont      { return [UIFont boldSystemFontOfSize:11.0]; }
 + (UIFont *)rowHeaderFont       { return [UIFont boldSystemFontOfSize:13.0]; }
++ (UIFont *)cardTitleFont       { return [UIFont boldSystemFontOfSize:14.0]; }
++ (UIFont *)chipFont            { return [UIFont boldSystemFontOfSize:11.0]; }
++ (UIFont *)pillFont            { return [UIFont boldSystemFontOfSize:9.0]; }
 + (UIFont *)navigationTitleFont { return [UIFont boldSystemFontOfSize:17.0]; }
 + (UIFont *)tabTitleFont        { return [UIFont boldSystemFontOfSize:10.0]; }
 

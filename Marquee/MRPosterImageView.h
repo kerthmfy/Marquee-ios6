@@ -14,6 +14,7 @@
 @interface MRPosterImageView : UIImageView
 
 - (instancetype)initWithImageCache:(MRImageCache *)imageCache;
+- (void)setImageCache:(MRImageCache *)imageCache;
 - (void)setImagePath:(NSString *)path size:(NSString *)size;
 - (void)setImageURL:(NSString *)URL;
 - (void)cancelLoading;
