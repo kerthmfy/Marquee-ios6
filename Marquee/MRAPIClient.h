@@ -10,14 +10,17 @@
 @class MRResponseCache;
 @class MRQuotaTracker;
 @class MRDiagnostics;
+@class MROutboxEntry;
 @protocol MRHTTPClient;
 @protocol MRTokenProviding;
 @protocol MRClock;
 
-// Public, unauthenticated Simkl reads plus the authenticated sync reads.
-// Public responses are cached on disk for 24 hours and revalidated with
-// If-Modified-Since. Authenticated reads attach the bearer token, always send
+// Public, unauthenticated Simkl reads plus the authenticated sync reads and
+// writes. Public responses are cached on disk for 24 hours and revalidated with
+// If-Modified-Since. Authenticated calls attach the bearer token, always send
 // language=en (where applicable), and never touch the public response cache.
+// Write POSTs are never retried by this layer; MRWriteService owns write retry
+// policy so attempts survive the process.
 @interface MRAPIClient : NSObject <MRSyncDataProviding>
 
 - (instancetype)initWithHTTPClient:(id<MRHTTPClient>)httpClient
@@ -43,5 +46,18 @@
                              dateFrom:(NSString *)dateFrom
                            completion:(void (^)(NSDictionary *json, NSError *error))completion;
 - (id<MRHTTPTask>)fetchUserSettingsWithCompletion:(void (^)(NSDictionary *json, NSError *error))completion;
+
+#pragma mark - Authenticated writes
+
+- (id<MRHTTPTask>)postStatusEntries:(NSArray<MROutboxEntry *> *)entries
+                         completion:(void (^)(NSDictionary *json, NSError *error))completion;
+- (id<MRHTTPTask>)postHistoryEntries:(NSArray<MROutboxEntry *> *)entries
+                          completion:(void (^)(NSDictionary *json, NSError *error))completion;
+- (id<MRHTTPTask>)postRatingEntries:(NSArray<MROutboxEntry *> *)entries
+                         completion:(void (^)(NSDictionary *json, NSError *error))completion;
+- (id<MRHTTPTask>)postRatingRemovalEntries:(NSArray<MROutboxEntry *> *)entries
+                                completion:(void (^)(NSDictionary *json, NSError *error))completion;
+- (id<MRHTTPTask>)postRemoveEntries:(NSArray<MROutboxEntry *> *)entries
+                         completion:(void (^)(NSDictionary *json, NSError *error))completion;
 
 @end

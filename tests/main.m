@@ -24,6 +24,8 @@ void MRRunMRLibraryStoreTests(void);
 void MRRunMRSyncInitialTests(void);
 void MRRunLibraryFilterTests(void);
 void MRRunRelatedItemTests(void);
+void MRRunOutboxTests(void);
+void MRRunWriteServiceTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -80,6 +82,12 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"related item");
         MRRunRelatedItemTests();
+
+        MRTestBeginSuite(@"outbox");
+        MRRunOutboxTests();
+
+        MRTestBeginSuite(@"write service");
+        MRRunWriteServiceTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {

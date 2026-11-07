@@ -15,6 +15,7 @@
 #import "MRResponseCache.h"
 #import "MRTokenProviding.h"
 #import "MRURLBuilder.h"
+#import "MROutboxEntry.h"
 
 static const NSTimeInterval MRPublicCacheMaxAge = 24.0 * 60.0 * 60.0;
 static const NSTimeInterval MRPublicCacheStaleMaxAge = 10.0 * 365.0 * 24.0 * 60.0 * 60.0;
@@ -82,6 +83,8 @@ static void MRDeliverOnMain(void (^block)(void)) {
 @property (nonatomic, copy) NSString *cacheKey;
 @property (nonatomic, assign) Class expectedClass;
 @property (nonatomic, copy) void (^completion)(id json, NSError *error);
+@property (nonatomic, assign) BOOL retriesAutomatically;
+@property (nonatomic, assign) BOOL allowsEmptyResponse;
 
 - (instancetype)initWithClient:(MRAPIClient *)client
                        request:(MRHTTPRequest *)request
@@ -114,6 +117,8 @@ static void MRDeliverOnMain(void (^block)(void)) {
         _completion = [completion copy];
         _serverRetries = 0;
         _burstRetries = 0;
+        _retriesAutomatically = YES;
+        _allowsEmptyResponse = NO;
     }
     return self;
 }
@@ -205,6 +210,10 @@ static void MRDeliverOnMain(void (^block)(void)) {
         object = [NSJSONSerialization JSONObjectWithData:response.data options:0 error:NULL];
     }
 
+    if (object == nil && self.allowsEmptyResponse) {
+        object = (self.expectedClass == [NSArray class]) ? @[] : @{};
+    }
+
     if (object == nil ||
         (self.expectedClass != Nil && ![object isKindOfClass:self.expectedClass])) {
         [self finishWithJSON:nil
@@ -251,6 +260,9 @@ static void MRDeliverOnMain(void (^block)(void)) {
 }
 
 - (BOOL)shouldRetryKind:(MRErrorKind)kind {
+    if (!self.retriesAutomatically) {
+        return NO;
+    }
     if (self.client.clock == nil) {
         return NO;
     }
@@ -341,10 +353,16 @@ static void MRDeliverOnMain(void (^block)(void)) {
 @interface MRAPIClientAuthenticatedCall : NSObject <MRHTTPTask>
 @property (nonatomic, strong) MRAPIClient *client;
 @property (nonatomic, copy) NSString *URL;
+@property (nonatomic, copy) NSString *method;
+@property (nonatomic, copy) NSData *body;
+@property (nonatomic, assign) BOOL allowsEmptyResponse;
 @property (nonatomic, assign) Class expectedClass;
 @property (nonatomic, copy) void (^completion)(id json, NSError *error);
 - (instancetype)initWithClient:(MRAPIClient *)client
                            URL:(NSString *)URL
+                        method:(NSString *)method
+                          body:(NSData *)body
+              allowsEmptyResponse:(BOOL)allowsEmptyResponse
                  expectedClass:(Class)expectedClass
                     completion:(void (^)(id json, NSError *error))completion;
 - (void)start;
@@ -358,12 +376,18 @@ static void MRDeliverOnMain(void (^block)(void)) {
 
 - (instancetype)initWithClient:(MRAPIClient *)client
                            URL:(NSString *)URL
+                        method:(NSString *)method
+                          body:(NSData *)body
+              allowsEmptyResponse:(BOOL)allowsEmptyResponse
                  expectedClass:(Class)expectedClass
                     completion:(void (^)(id json, NSError *error))completion {
     self = [super init];
     if (self) {
         _client = client;
         _URL = [URL copy];
+        _method = [(method.length > 0 ? method : @"GET") copy];
+        _body = [body copy];
+        _allowsEmptyResponse = allowsEmptyResponse;
         _expectedClass = expectedClass;
         _completion = [completion copy];
     }
@@ -394,14 +418,19 @@ static void MRDeliverOnMain(void (^block)(void)) {
         }
 
         MRHTTPRequest *request = [[MRHTTPRequest alloc] initWithURL:strongSelf.URL
-                                                            method:@"GET"];
+                                                            method:strongSelf.method];
         request.queueKind = MRHTTPQueueKindAPI;
         request.timeout = 30.0;
-        request.headers = @{
-            @"Accept": @"application/json",
-            @"Authorization": [@"Bearer " stringByAppendingString:token],
-            @"User-Agent": MR_USER_AGENT
-        };
+        NSMutableDictionary *headers = [NSMutableDictionary dictionary];
+        [headers setObject:@"application/json" forKey:@"Accept"];
+        [headers setObject:[@"Bearer " stringByAppendingString:token]
+                    forKey:@"Authorization"];
+        [headers setObject:MR_USER_AGENT forKey:@"User-Agent"];
+        if (strongSelf.body.length > 0) {
+            [headers setObject:@"application/json" forKey:@"Content-Type"];
+            request.body = strongSelf.body;
+        }
+        request.headers = headers;
 
         MRAPIClientCall *call = [[MRAPIClientCall alloc]
             initWithClient:client
@@ -411,6 +440,9 @@ static void MRDeliverOnMain(void (^block)(void)) {
                 completion:^(id json, NSError *callError) {
             [strongSelf finishWithJSON:json error:callError];
         }];
+        call.retriesAutomatically =
+            [strongSelf.method isEqualToString:@"GET"];
+        call.allowsEmptyResponse = strongSelf.allowsEmptyResponse;
 
         @synchronized(strongSelf) {
             if (strongSelf->_finished || strongSelf->_cancelled) {
@@ -657,6 +689,9 @@ static NSString *MRAPIClientSyncTypeKey(MRMediaType type) {
     MRAPIClientAuthenticatedCall *call =
         [[MRAPIClientAuthenticatedCall alloc] initWithClient:self
                                                          URL:URL
+                                                      method:@"GET"
+                                                        body:nil
+                                         allowsEmptyResponse:NO
                                                expectedClass:expectedClass
                                                   completion:completion];
     [call start];
@@ -740,6 +775,143 @@ static NSString *MRAPIClientSyncTypeKey(MRMediaType type) {
             completion((NSDictionary *)json, error);
         }
     }];
+}
+
+#pragma mark - Authenticated writes
+
+static NSString *MRAPIClientWriteTypeKey(MROutboxEntry *entry, BOOL animeAsShows) {
+    if (entry.type == MRMediaTypeMovie) {
+        return @"movies";
+    }
+    if (entry.type == MRMediaTypeAnime && !animeAsShows) {
+        return @"anime";
+    }
+    return @"shows";
+}
+
+static NSDictionary *MRAPIClientWriteIdentity(MROutboxEntry *entry) {
+    return @{ @"ids": @{ @"simkl": @(entry.simklID) } };
+}
+
+static void MRAPIClientAppendWriteItem(NSMutableDictionary *body,
+                                       NSString *typeKey,
+                                       NSDictionary *item) {
+    NSMutableArray *items = [body objectForKey:typeKey];
+    if (items == nil) {
+        items = [NSMutableArray array];
+        [body setObject:items forKey:typeKey];
+    }
+    [items addObject:item];
+}
+
+- (id<MRHTTPTask>)postAuthenticatedPath:(NSString *)path
+                                   body:(NSDictionary *)body
+                             completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSData *data = nil;
+    if (body != nil) {
+        data = [NSJSONSerialization dataWithJSONObject:body options:0 error:NULL];
+    }
+
+    NSString *URL = [MRURLBuilder apiURLForPath:path query:nil];
+    MRAPIClientAuthenticatedCall *call =
+        [[MRAPIClientAuthenticatedCall alloc] initWithClient:self
+                                                         URL:URL
+                                                      method:@"POST"
+                                                        body:data
+                                         allowsEmptyResponse:YES
+                                               expectedClass:[NSDictionary class]
+                                                  completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSDictionary *)json, error);
+        }
+    }];
+    [call start];
+    return call;
+}
+
+- (id<MRHTTPTask>)postStatusEntries:(NSArray<MROutboxEntry *> *)entries
+                         completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSMutableDictionary *body = [NSMutableDictionary dictionary];
+    for (MROutboxEntry *entry in entries) {
+        NSMutableDictionary *item =
+            [NSMutableDictionary dictionaryWithDictionary:MRAPIClientWriteIdentity(entry)];
+        [item setObject:MRWatchStatusKey(entry.status) forKey:@"to"];
+        MRAPIClientAppendWriteItem(body,
+                                   MRAPIClientWriteTypeKey(entry, NO),
+                                   item);
+    }
+    return [self postAuthenticatedPath:@"sync/add-to-list"
+                                  body:body
+                            completion:completion];
+}
+
+- (id<MRHTTPTask>)postHistoryEntries:(NSArray<MROutboxEntry *> *)entries
+                          completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSMutableDictionary *body = [NSMutableDictionary dictionary];
+    for (MROutboxEntry *entry in entries) {
+        NSMutableDictionary *item =
+            [NSMutableDictionary dictionaryWithDictionary:MRAPIClientWriteIdentity(entry)];
+
+        if (entry.kind == MROutboxEntryKindHistoryEpisode) {
+            NSDictionary *season = @{
+                @"number": @(entry.season),
+                @"episodes": @[ @{ @"number": @(entry.episode) } ]
+            };
+            [item setObject:@[ season ] forKey:@"seasons"];
+        } else if (entry.type != MRMediaTypeMovie &&
+                   entry.status != MRWatchStatusNone) {
+            [item setObject:MRWatchStatusKey(entry.status) forKey:@"status"];
+        }
+
+        MRAPIClientAppendWriteItem(body,
+                                   MRAPIClientWriteTypeKey(entry, YES),
+                                   item);
+    }
+    return [self postAuthenticatedPath:@"sync/history"
+                                  body:body
+                            completion:completion];
+}
+
+- (id<MRHTTPTask>)postRatingEntries:(NSArray<MROutboxEntry *> *)entries
+                         completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSMutableDictionary *body = [NSMutableDictionary dictionary];
+    for (MROutboxEntry *entry in entries) {
+        NSMutableDictionary *item =
+            [NSMutableDictionary dictionaryWithDictionary:MRAPIClientWriteIdentity(entry)];
+        [item setObject:@(entry.rating) forKey:@"rating"];
+        MRAPIClientAppendWriteItem(body,
+                                   MRAPIClientWriteTypeKey(entry, NO),
+                                   item);
+    }
+    return [self postAuthenticatedPath:@"sync/ratings"
+                                  body:body
+                            completion:completion];
+}
+
+- (id<MRHTTPTask>)postRatingRemovalEntries:(NSArray<MROutboxEntry *> *)entries
+                                completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSMutableDictionary *body = [NSMutableDictionary dictionary];
+    for (MROutboxEntry *entry in entries) {
+        MRAPIClientAppendWriteItem(body,
+                                   MRAPIClientWriteTypeKey(entry, NO),
+                                   MRAPIClientWriteIdentity(entry));
+    }
+    return [self postAuthenticatedPath:@"sync/ratings/remove"
+                                  body:body
+                            completion:completion];
+}
+
+- (id<MRHTTPTask>)postRemoveEntries:(NSArray<MROutboxEntry *> *)entries
+                         completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSMutableDictionary *body = [NSMutableDictionary dictionary];
+    for (MROutboxEntry *entry in entries) {
+        MRAPIClientAppendWriteItem(body,
+                                   MRAPIClientWriteTypeKey(entry, YES),
+                                   MRAPIClientWriteIdentity(entry));
+    }
+    return [self postAuthenticatedPath:@"sync/history/remove"
+                                  body:body
+                            completion:completion];
 }
 
 @end
