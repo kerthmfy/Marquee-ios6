@@ -5,12 +5,10 @@
 
 #import <UIKit/UIKit.h>
 
-@class MRAPIClient;
-@class MRImageCache;
+@class MRAppEnvironment;
 
 @interface MRForYouViewController : UIViewController
 
-- (instancetype)initWithAPIClient:(MRAPIClient *)apiClient
-                       imageCache:(MRImageCache *)imageCache;
+- (instancetype)initWithEnvironment:(MRAppEnvironment *)environment;
 
 @end

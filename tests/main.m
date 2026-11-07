@@ -19,6 +19,9 @@ void MRRunPublicFeedBuilderTests(void);
 void MRRunDeviceFlowTests(void);
 void MRRunTokenStoreTests(void);
 void MRRunMRLayoutTests(void);
+void MRRunStorageTests(void);
+void MRRunMRLibraryStoreTests(void);
+void MRRunMRSyncInitialTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -60,6 +63,15 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"layout");
         MRRunMRLayoutTests();
+
+        MRTestBeginSuite(@"storage");
+        MRRunStorageTests();
+
+        MRTestBeginSuite(@"library store");
+        MRRunMRLibraryStoreTests();
+
+        MRTestBeginSuite(@"sync initial");
+        MRRunMRSyncInitialTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {

@@ -213,14 +213,23 @@ static void MRDeliverOnMain(void (^block)(void)) {
         return;
     }
 
-    [self.client.responseCache storeBody:object
-                                  forURL:self.cacheKey
-                            lastModified:MRHeaderValue(response.headers, @"Last-Modified")];
+    if (self.cacheKey.length > 0) {
+        [self.client.responseCache storeBody:object
+                                      forURL:self.cacheKey
+                                lastModified:MRHeaderValue(response.headers, @"Last-Modified")];
+    }
 
     [self finishWithJSON:object error:nil response:response];
 }
 
 - (void)handleNotModified:(MRHTTPResponse *)response {
+    if (self.cacheKey.length == 0) {
+        [self finishWithJSON:nil
+                       error:[MRError errorWithKind:MRErrorKindParse]
+                    response:response];
+        return;
+    }
+
     MRResponseCache *cache = self.client.responseCache;
     id body = [cache cachedBodyForURL:self.cacheKey maxAge:MRPublicCacheStaleMaxAge];
 
@@ -323,6 +332,129 @@ static void MRDeliverOnMain(void (^block)(void)) {
             completion(nil, [MRError errorWithKind:MRErrorKindCancelled]);
         });
     }
+}
+
+@end
+
+#pragma mark - Authenticated calls
+
+@interface MRAPIClientAuthenticatedCall : NSObject <MRHTTPTask>
+@property (nonatomic, strong) MRAPIClient *client;
+@property (nonatomic, copy) NSString *URL;
+@property (nonatomic, assign) Class expectedClass;
+@property (nonatomic, copy) void (^completion)(id json, NSError *error);
+- (instancetype)initWithClient:(MRAPIClient *)client
+                           URL:(NSString *)URL
+                 expectedClass:(Class)expectedClass
+                    completion:(void (^)(id json, NSError *error))completion;
+- (void)start;
+@end
+
+@implementation MRAPIClientAuthenticatedCall {
+    BOOL _finished;
+    BOOL _cancelled;
+    id<MRHTTPTask> _task;
+}
+
+- (instancetype)initWithClient:(MRAPIClient *)client
+                           URL:(NSString *)URL
+                 expectedClass:(Class)expectedClass
+                    completion:(void (^)(id json, NSError *error))completion {
+    self = [super init];
+    if (self) {
+        _client = client;
+        _URL = [URL copy];
+        _expectedClass = expectedClass;
+        _completion = [completion copy];
+    }
+    return self;
+}
+
+- (void)start {
+    MRAPIClient *client = self.client;
+    if (client == nil || client.tokenProvider == nil) {
+        [self finishWithJSON:nil error:[MRError errorWithKind:MRErrorKindAuthExpired]];
+        return;
+    }
+
+    __weak MRAPIClientAuthenticatedCall *weakSelf = self;
+    [client.tokenProvider validAccessTokenWithCompletion:^(NSString *token, NSError *error) {
+        MRAPIClientAuthenticatedCall *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf->_finished || strongSelf->_cancelled) {
+            return;
+        }
+        if (error != nil) {
+            [strongSelf finishWithJSON:nil error:error];
+            return;
+        }
+        if (token.length == 0) {
+            [strongSelf finishWithJSON:nil
+                                 error:[MRError errorWithKind:MRErrorKindAuthExpired]];
+            return;
+        }
+
+        MRHTTPRequest *request = [[MRHTTPRequest alloc] initWithURL:strongSelf.URL
+                                                            method:@"GET"];
+        request.queueKind = MRHTTPQueueKindAPI;
+        request.timeout = 30.0;
+        request.headers = @{
+            @"Accept": @"application/json",
+            @"Authorization": [@"Bearer " stringByAppendingString:token],
+            @"User-Agent": MR_USER_AGENT
+        };
+
+        MRAPIClientCall *call = [[MRAPIClientCall alloc]
+            initWithClient:client
+                   request:request
+                  cacheKey:nil
+             expectedClass:strongSelf.expectedClass
+                completion:^(id json, NSError *callError) {
+            [strongSelf finishWithJSON:json error:callError];
+        }];
+
+        @synchronized(strongSelf) {
+            if (strongSelf->_finished || strongSelf->_cancelled) {
+                [call cancel];
+                return;
+            }
+            strongSelf->_task = call;
+        }
+        [call start];
+    }];
+}
+
+- (void)finishWithJSON:(id)json error:(NSError *)error {
+    @synchronized(self) {
+        if (_finished) {
+            return;
+        }
+        _finished = YES;
+        _task = nil;
+    }
+
+    void (^completion)(id, NSError *) = self.completion;
+    if (completion != nil) {
+        MRDeliverOnMain(^{
+            completion(json, error);
+        });
+    }
+}
+
+#pragma mark - MRHTTPTask
+
+- (void)cancel {
+    id<MRHTTPTask> task = nil;
+    @synchronized(self) {
+        if (_finished) {
+            return;
+        }
+        _cancelled = YES;
+        task = _task;
+        _task = nil;
+    }
+
+    [task cancel];
+    [self finishWithJSON:nil error:[MRError errorWithKind:MRErrorKindCancelled]];
 }
 
 @end
@@ -488,6 +620,122 @@ static void MRDeliverOnMain(void (^block)(void)) {
     return [self fetchURL:URL
             expectedClass:[NSDictionary class]
                completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSDictionary *)json, error);
+        }
+    }];
+}
+
+#pragma mark - Authenticated sync reads
+
+static NSString *MRAPIClientSyncTypeKey(MRMediaType type) {
+    switch (type) {
+        case MRMediaTypeShow:
+            return @"shows";
+        case MRMediaTypeAnime:
+            return @"anime";
+        case MRMediaTypeMovie:
+        default:
+            return @"movies";
+    }
+}
+
+- (id<MRHTTPTask>)fetchAuthenticatedPath:(NSString *)path
+                                   query:(NSDictionary *)query
+                           expectedClass:(Class)expectedClass
+                              completion:(void (^)(id json, NSError *error))completion {
+    if (path.length == 0) {
+        MRDeliverOnMain(^{
+            if (completion != nil) {
+                completion(nil, [MRError errorWithKind:MRErrorKindUnknown]);
+            }
+        });
+        return nil;
+    }
+
+    NSString *URL = [MRURLBuilder apiURLForPath:path query:query];
+    MRAPIClientAuthenticatedCall *call =
+        [[MRAPIClientAuthenticatedCall alloc] initWithClient:self
+                                                         URL:URL
+                                               expectedClass:expectedClass
+                                                  completion:completion];
+    [call start];
+    return call;
+}
+
+- (id<MRHTTPTask>)fetchActivitiesWithCompletion:
+    (void (^)(NSDictionary *json, NSError *error))completion {
+    return [self fetchAuthenticatedPath:@"sync/activities"
+                                  query:@{ @"language": @"en" }
+                          expectedClass:[NSDictionary class]
+                             completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSDictionary *)json, error);
+        }
+    }];
+}
+
+- (id<MRHTTPTask>)fetchAllItemsForType:(MRMediaType)type
+                                status:(MRWatchStatus)status
+                              dateFrom:(NSString *)dateFrom
+                               idsOnly:(BOOL)idsOnly
+                          nextWatchInfo:(BOOL)nextWatchInfo
+                             completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSString *path = [NSString stringWithFormat:@"sync/all-items/%@",
+                      MRAPIClientSyncTypeKey(type)];
+    if (status != MRWatchStatusNone) {
+        path = [path stringByAppendingFormat:@"/%@", MRWatchStatusKey(status)];
+    }
+
+    NSMutableDictionary *query = [NSMutableDictionary dictionary];
+    [query setObject:@"en" forKey:@"language"];
+    if (dateFrom != nil) {
+        [query setObject:dateFrom forKey:@"date_from"];
+    }
+    if (idsOnly) {
+        [query setObject:@"simkl_ids_only" forKey:@"extended"];
+    }
+    if (nextWatchInfo) {
+        [query setObject:@"yes" forKey:@"next_watch_info"];
+    }
+
+    return [self fetchAuthenticatedPath:path
+                                  query:query
+                          expectedClass:[NSDictionary class]
+                             completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSDictionary *)json, error);
+        }
+    }];
+}
+
+- (id<MRHTTPTask>)fetchRatingsForType:(MRMediaType)type
+                             dateFrom:(NSString *)dateFrom
+                           completion:(void (^)(NSDictionary *json, NSError *error))completion {
+    NSString *path = [NSString stringWithFormat:@"sync/ratings/%@",
+                      MRAPIClientSyncTypeKey(type)];
+    NSMutableDictionary *query = [NSMutableDictionary dictionary];
+    [query setObject:@"en" forKey:@"language"];
+    if (dateFrom != nil) {
+        [query setObject:dateFrom forKey:@"date_from"];
+    }
+
+    return [self fetchAuthenticatedPath:path
+                                  query:query
+                          expectedClass:[NSDictionary class]
+                             completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSDictionary *)json, error);
+        }
+    }];
+}
+
+- (id<MRHTTPTask>)fetchUserSettingsWithCompletion:
+    (void (^)(NSDictionary *json, NSError *error))completion {
+    return [self fetchAuthenticatedPath:@"users/settings"
+                                  query:nil
+                          expectedClass:[NSDictionary class]
+                             completion:^(id json, NSError *error) {
         if (completion != nil) {
             completion((NSDictionary *)json, error);
         }

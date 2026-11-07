@@ -8,26 +8,23 @@
 #import <QuartzCore/QuartzCore.h>
 
 #import "MRAPIClient.h"
-#import "MRAPIRequestOperation.h"
+#import "MRAppEnvironment.h"
 #import "MRAppearance.h"
-#import "MRClock.h"
 #import "MRConnectViewController.h"
-#import "MRDiagnostics.h"
 #import "MRError.h"
 #import "MRFeedSection.h"
 #import "MRHeroView.h"
 #import "MRHTTPClient.h"
 #import "MRImageCache.h"
-#import "MRKeychainTokenStore.h"
 #import "MRLayout.h"
+#import "MRLibraryStore.h"
 #import "MRMediaItem.h"
 #import "MRPlaceholderView.h"
 #import "MRPosterCardView.h"
 #import "MRPublicFeedBuilder.h"
-#import "MRResponseCache.h"
 #import "MRRowHeaderView.h"
 #import "MRSimklAuth.h"
-#import "MRTokenSession.h"
+#import "MRSyncEngine.h"
 
 static MRDeviceClass MRForYouDeviceClass(void) {
     return [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
@@ -259,60 +256,43 @@ static CGFloat MRForYouAvailableHeight(void) {
 #pragma mark - Controller
 
 @interface MRForYouViewController () <UITableViewDataSource, UITableViewDelegate>
-@property (nonatomic, strong) MRAPIClient *apiClient;
-@property (nonatomic, strong) MRImageCache *imageCache;
+@property (nonatomic, strong) MRAppEnvironment *environment;
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, copy) NSArray *sections;
+@property (nonatomic, copy) NSArray *publicSections;
 @property (nonatomic, assign, getter=isLoadingFeed) BOOL loadingFeed;
 @property (nonatomic, strong) id<MRHTTPTask> trendingTask;
 @property (nonatomic, strong) UIRefreshControl *refreshControl;
 @property (nonatomic, strong) UIView *bannerView;
 @property (nonatomic, strong) MRForYouSkeletonView *skeletonView;
 @property (nonatomic, strong) MRPlaceholderView *retryView;
-@property (nonatomic, strong) MRSimklAuth *auth;
+@property (nonatomic, strong) UIView *statusHeaderView;
+@property (nonatomic, strong) UILabel *statusLabel;
 @property (nonatomic, assign) CGFloat lastLayoutWidth;
 @end
 
 @implementation MRForYouViewController
 
-- (instancetype)initWithAPIClient:(MRAPIClient *)apiClient
-                       imageCache:(MRImageCache *)imageCache {
+- (instancetype)initWithEnvironment:(MRAppEnvironment *)environment {
     self = [super init];
     if (self) {
-        _apiClient = apiClient;
-        _imageCache = imageCache;
+        _environment = environment;
         _sections = @[];
+        _publicSections = @[];
     }
     return self;
 }
 
 - (id)init {
-    // Temporary shared services. Task 9 replaces these with app-wide instances.
-    NSString *caches = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
-                                                            NSUserDomainMask,
-                                                            YES) objectAtIndex:0];
-    NSString *base = [caches stringByAppendingPathComponent:@"Marquee"];
-    MRDiagnostics *diagnostics = [[MRDiagnostics alloc]
-        initWithDirectory:[base stringByAppendingPathComponent:@"Diagnostics"]];
-    MRSystemClock *clock = [[MRSystemClock alloc] init];
+    return [self initWithEnvironment:nil];
+}
 
-    MRAPIClient *client = [[MRAPIClient alloc]
-        initWithHTTPClient:[MRAPIRequestOperation sharedClient]
-             tokenProvider:nil
-             responseCache:[[MRResponseCache alloc]
-                            initWithDirectory:[base stringByAppendingPathComponent:@"Responses"]]
-              quotaTracker:nil
-               diagnostics:diagnostics
-                     clock:clock];
+- (MRAPIClient *)apiClient {
+    return self.environment.apiClient;
+}
 
-    self = [self initWithAPIClient:client imageCache:[[MRImageCache alloc] init]];
-    if (self) {
-        _auth = [[MRSimklAuth alloc] initWithHTTPClient:[MRAPIRequestOperation sharedClient]
-                                            tokenStore:[[MRKeychainTokenStore alloc] init]
-                                           diagnostics:diagnostics
-                                                 clock:clock];
-    }
-    return self;
+- (MRImageCache *)imageCache {
+    return self.environment.imageCache;
 }
 
 - (void)viewDidLoad {
@@ -364,12 +344,23 @@ static CGFloat MRForYouAvailableHeight(void) {
     self.retryView = retry;
 
     [self buildBanner];
+    [self buildStatusHeader];
 
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(authDidChange:)
-                                                 name:MRAuthDidChangeNotification
-                                               object:nil];
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    [center addObserver:self
+               selector:@selector(authDidChange:)
+                   name:MRAuthDidChangeNotification
+                 object:nil];
+    [center addObserver:self
+               selector:@selector(libraryDidChange:)
+                   name:MRLibraryDidChangeNotification
+                 object:nil];
+    [center addObserver:self
+               selector:@selector(syncStatusDidChange:)
+                   name:MRSyncStatusDidChangeNotification
+                 object:nil];
 
+    [self updateStatusHeader];
     [self loadFeed];
 }
 
@@ -377,7 +368,12 @@ static CGFloat MRForYouAvailableHeight(void) {
     [super viewDidLayoutSubviews];
 
     CGFloat width = CGRectGetWidth(self.view.bounds);
-    if (width <= 0.0 || width == self.lastLayoutWidth) {
+    if (width <= 0.0) {
+        return;
+    }
+
+    [self layoutStatusHeader];
+    if (width == self.lastLayoutWidth) {
         return;
     }
 
@@ -404,7 +400,90 @@ static CGFloat MRForYouAvailableHeight(void) {
 }
 
 - (void)authDidChange:(NSNotification *)notification {
+    [self rebuildVisibleSections];
+    [self updateStatusHeader];
     [self.tableView reloadData];
+}
+
+- (void)libraryDidChange:(NSNotification *)notification {
+    [self updateStatusHeader];
+}
+
+- (void)syncStatusDidChange:(NSNotification *)notification {
+    [self updateStatusHeader];
+}
+
+- (void)rebuildVisibleSections {
+    if (!self.environment.auth.isSignedIn) {
+        self.sections = self.publicSections;
+        return;
+    }
+
+    NSMutableArray *visible = [NSMutableArray array];
+    for (MRFeedSection *section in self.publicSections) {
+        if (section.kind != MRFeedSectionKindHero) {
+            [visible addObject:section];
+        }
+    }
+    self.sections = visible;
+}
+
+- (void)buildStatusHeader {
+    UIView *header = [[UIView alloc] initWithFrame:CGRectZero];
+    header.backgroundColor = [UIColor clearColor];
+    header.opaque = NO;
+
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
+    label.backgroundColor = [UIColor clearColor];
+    label.font = [MRAppearance smallFont];
+    label.textColor = [MRAppearance muted];
+    label.lineBreakMode = NSLineBreakByTruncatingTail;
+    [header addSubview:label];
+
+    self.statusHeaderView = header;
+    self.statusLabel = label;
+}
+
+- (void)updateStatusHeader {
+    NSString *text = nil;
+    if (self.environment.auth.isSignedIn) {
+        MRSyncEngine *engine = self.environment.syncEngine;
+        MRLibraryStore *store = self.environment.libraryStore;
+        if (engine.isSyncing) {
+            text = @"Syncing…";
+        } else if (engine.lastSyncError != nil) {
+            text = @"Sync failed — showing saved library.";
+        } else if (store != nil) {
+            text = [NSString stringWithFormat:@"Synced %lu items",
+                    (unsigned long)store.items.count];
+        } else {
+            text = @"Sync failed — showing saved library.";
+        }
+    }
+
+    self.statusLabel.text = text;
+    self.tableView.tableHeaderView =
+        text.length > 0 ? self.statusHeaderView : nil;
+    [self layoutStatusHeader];
+}
+
+- (void)layoutStatusHeader {
+    if (self.statusHeaderView == nil || self.tableView == nil) {
+        return;
+    }
+
+    MRDeviceClass device = MRForYouDeviceClass();
+    CGFloat tableWidth = CGRectGetWidth(self.tableView.bounds);
+    CGFloat contentWidth = MIN(tableWidth,
+        [MRLayout contentMaxWidthForDeviceClass:device]);
+    CGFloat inset = [MRLayout rowSideInsetForDeviceClass:device];
+    CGFloat height = [MRLayout rowHeaderHeightForDeviceClass:device];
+
+    self.statusHeaderView.frame = CGRectMake(0.0, 0.0, tableWidth, height);
+    self.statusLabel.frame = CGRectMake((tableWidth - contentWidth) / 2.0 + inset,
+                                        0.0,
+                                        MAX(contentWidth - inset * 2.0, 0.0),
+                                        height);
 }
 
 - (void)buildBanner {
@@ -486,8 +565,9 @@ static CGFloat MRForYouAvailableHeight(void) {
             return;
         }
 
-        strongSelf.sections =
+        strongSelf.publicSections =
             [MRPublicFeedBuilder signedOutSectionsWithTrending:json];
+        [strongSelf rebuildVisibleSections];
         strongSelf.skeletonView.hidden = YES;
         strongSelf.retryView.hidden = YES;
         strongSelf.tableView.hidden = NO;
@@ -519,21 +599,13 @@ static CGFloat MRForYouAvailableHeight(void) {
     [self loadFeed];
 }
 
-- (MRSimklAuth *)authForConnect {
-    if (self.auth == nil) {
-        // Fallback for a controller created through the designated initializer
-        // before Task 9 injects the app-wide auth service.
-        self.auth = [[MRSimklAuth alloc] initWithHTTPClient:[MRAPIRequestOperation sharedClient]
-                                                 tokenStore:[[MRKeychainTokenStore alloc] init]
-                                                diagnostics:[[MRDiagnostics alloc] initWithDirectory:nil]
-                                                      clock:[[MRSystemClock alloc] init]];
-    }
-    return self.auth;
-}
-
 - (void)showConnect {
+    MRSimklAuth *auth = self.environment.auth;
+    if (auth == nil) {
+        return;
+    }
     MRConnectViewController *connect =
-        [[MRConnectViewController alloc] initWithAuth:[self authForConnect]];
+        [[MRConnectViewController alloc] initWithAuth:auth];
     UINavigationController *navigation =
         [[UINavigationController alloc] initWithRootViewController:connect];
     navigation.modalPresentationStyle = UIModalPresentationFullScreen;
@@ -563,27 +635,13 @@ static CGFloat MRForYouAvailableHeight(void) {
             cell = [[MRForYouHeroCell alloc] initWithStyle:UITableViewCellStyleDefault
                                            reuseIdentifier:heroIdentifier];
         }
-        BOOL signedIn = self.auth.isSignedIn;
-        NSString *title = section.title;
-        NSString *subtitle = section.subtitle;
-        NSString *buttonTitle = @"Sign In";
         __weak MRForYouViewController *weakSelf = self;
-        if (signedIn) {
-            NSString *name = self.auth.session.accountName;
-            title = name.length > 0
-                ? [NSString stringWithFormat:@"Connected as %@", name]
-                : @"Connected to Simkl";
-            subtitle = @"Your Simkl account is connected.";
-            buttonTitle = @"";
-            cell.heroView.actionHandler = nil;
-        } else {
-            cell.heroView.actionHandler = ^{
-                [weakSelf showConnect];
-            };
-        }
-        [cell.heroView configureWithTitle:title
-                                 subtitle:subtitle
-                              buttonTitle:buttonTitle];
+        cell.heroView.actionHandler = ^{
+            [weakSelf showConnect];
+        };
+        [cell.heroView configureWithTitle:section.title
+                                 subtitle:section.subtitle
+                              buttonTitle:@"Sign In"];
         return cell;
     }
 

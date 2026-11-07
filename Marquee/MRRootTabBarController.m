@@ -1,5 +1,6 @@
 #import "MRRootTabBarController.h"
 
+#import "MRAppEnvironment.h"
 #import "MRAppearance.h"
 #import "MRForYouViewController.h"
 #import "MRLibraryViewController.h"
@@ -7,6 +8,7 @@
 #import "MRProfileViewController.h"
 
 @interface MRRootTabBarController ()
+@property (nonatomic, strong) MRAppEnvironment *environment;
 @property (nonatomic, assign) CGFloat styledTabBarWidth;
 - (void)restyleTabBarIfNeeded;
 @end
@@ -41,9 +43,16 @@
 
 - (id)init
 {
+    return [self initWithEnvironment:nil];
+}
+
+- (instancetype)initWithEnvironment:(MRAppEnvironment *)environment
+{
     self = [super init];
     if (self) {
-        MRForYouViewController *forYou = [[MRForYouViewController alloc] init];
+        _environment = environment;
+        MRForYouViewController *forYou =
+            [[MRForYouViewController alloc] initWithEnvironment:environment];
         MRLibraryViewController *library = [[MRLibraryViewController alloc] init];
         MRSearchViewController *search = [[MRSearchViewController alloc] init];
         MRProfileViewController *profile = [[MRProfileViewController alloc] init];
