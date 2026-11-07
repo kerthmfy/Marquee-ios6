@@ -11,6 +11,7 @@
 #import "MRAppEnvironment.h"
 #import "MRAppearance.h"
 #import "MRConnectViewController.h"
+#import "MRDetailViewController.h"
 #import "MRError.h"
 #import "MRFeedSection.h"
 #import "MRHeroView.h"
@@ -599,6 +600,23 @@ static CGFloat MRForYouAvailableHeight(void) {
     [self loadFeed];
 }
 
+- (void)openDetailForItem:(MRMediaItem *)item {
+    if (item == nil || self.navigationController == nil) {
+        return;
+    }
+
+    MRLibraryStore *store = self.environment.libraryStore;
+    MRMediaItem *known = [store itemForType:item.type simklID:item.simklID];
+    MRMediaItem *target = known != nil ? known : item;
+
+    MRDetailViewController *detail =
+        [[MRDetailViewController alloc] initWithItem:target
+                                           apiClient:self.environment.apiClient
+                                        libraryStore:store
+                                          imageCache:self.imageCache];
+    [self.navigationController pushViewController:detail animated:YES];
+}
+
 - (void)showConnect {
     MRSimklAuth *auth = self.environment.auth;
     if (auth == nil) {
@@ -652,7 +670,12 @@ static CGFloat MRForYouAvailableHeight(void) {
         cell = [[MRForYouRowCell alloc] initWithStyle:UITableViewCellStyleDefault
                                       reuseIdentifier:rowIdentifier];
     }
-    [cell configureWithImageCache:self.imageCache items:section.items tapHandler:nil];
+    __weak MRForYouViewController *weakSelf = self;
+    [cell configureWithImageCache:self.imageCache
+                            items:section.items
+                       tapHandler:^(MRMediaItem *item) {
+        [weakSelf openDetailForItem:item];
+    }];
     return cell;
 }
 

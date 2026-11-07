@@ -8,6 +8,7 @@
 #import "MRAppEnvironment.h"
 #import "MRAppearance.h"
 #import "MRConnectViewController.h"
+#import "MRDetailViewController.h"
 #import "MRError.h"
 #import "MRImageCache.h"
 #import "MRLayout.h"
@@ -944,6 +945,20 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+
+    if (self.contentState != MRLibraryContentStateRows ||
+        (NSUInteger)indexPath.row >= self.visibleItems.count ||
+        self.navigationController == nil) {
+        return;
+    }
+
+    MRMediaItem *item = [self.visibleItems objectAtIndex:(NSUInteger)indexPath.row];
+    MRDetailViewController *detail =
+        [[MRDetailViewController alloc] initWithItem:item
+                                           apiClient:self.environment.apiClient
+                                        libraryStore:self.libraryStore
+                                          imageCache:self.imageCache];
+    [self.navigationController pushViewController:detail animated:YES];
 }
 
 @end

@@ -22,6 +22,11 @@
 @property (nonatomic, assign) NSInteger runtime;
 @property (nonatomic, copy) NSDictionary *ratings;
 @property (nonatomic, copy) NSDictionary *externalIDs;
+@property (nonatomic, copy) NSString *overview;
+@property (nonatomic, copy) NSString *network;
+@property (nonatomic, copy) NSString *country;
+@property (nonatomic, copy) NSString *releaseDate;
+@property (nonatomic, copy) NSString *airStatus;
 
 @property (nonatomic, assign) MRWatchStatus watchStatus;
 @property (nonatomic, assign) NSInteger userRating;
@@ -54,6 +59,17 @@
 // Detail response (ids.simkl), with an explicit type.
 + (instancetype)itemWithDetailDictionary:(NSDictionary *)dictionary
                                     type:(MRMediaType)type;
+
+// A similar or users_recommendations mini object. The type comes from the
+// object's "type" key; entries without a positive ids.simkl are skipped by
+// +itemsWithRelatedDictionaries:.
++ (instancetype)itemWithRelatedDictionary:(NSDictionary *)dictionary;
++ (NSArray *)itemsWithRelatedDictionaries:(NSArray *)dictionaries;
+
+// Copies the receiver and replaces the public metadata present in a detail
+// response. Library-only fields (watch status, user rating, progress, dates)
+// are preserved.
+- (MRMediaItem *)itemByMergingDetailDictionary:(NSDictionary *)dictionary;
 
 // Round-trips dictionaryRepresentation.
 + (instancetype)itemWithDictionaryRepresentation:(NSDictionary *)dictionary;

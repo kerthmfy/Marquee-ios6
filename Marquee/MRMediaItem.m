@@ -96,6 +96,11 @@ static NSDictionary *MRExternalIDs(id value) {
         _genres = @[];
         _ratings = @{};
         _externalIDs = @{};
+        _overview = @"";
+        _network = @"";
+        _country = @"";
+        _releaseDate = @"";
+        _airStatus = @"";
         _lastWatched = @"";
         _nextToWatch = @"";
     }
@@ -181,6 +186,134 @@ static NSDictionary *MRExternalIDs(id value) {
     return item;
 }
 
++ (instancetype)itemWithRelatedDictionary:(NSDictionary *)dictionary {
+    NSDictionary *entry = MRDictionaryValue(dictionary);
+    MRMediaItem *item = [[self alloc] init];
+    [item populateFromObject:entry];
+    item.type = MRMediaTypeFromSearchKey(MRNullableStringValue(entry[@"type"]));
+    return item;
+}
+
++ (NSArray *)itemsWithRelatedDictionaries:(NSArray *)dictionaries {
+    if (![dictionaries isKindOfClass:[NSArray class]]) {
+        return @[];
+    }
+
+    NSMutableArray *items = [NSMutableArray array];
+    for (id entry in dictionaries) {
+        if (![entry isKindOfClass:[NSDictionary class]]) {
+            continue;
+        }
+        MRMediaItem *item = [self itemWithRelatedDictionary:entry];
+        if (item.simklID <= 0) {
+            continue;
+        }
+        [items addObject:item];
+    }
+    return items;
+}
+
+- (MRMediaItem *)itemByMergingDetailDictionary:(NSDictionary *)dictionary {
+    NSDictionary *entry = MRDictionaryValue(dictionary);
+    if (entry.count == 0) {
+        return [self copy];
+    }
+
+    MRMediaItem *merged = [self copy];
+    NSDictionary *ids = MRDictionaryValue(entry[@"ids"]);
+
+    NSInteger simklID = MRIntegerValue(ids[@"simkl"]);
+    if (simklID == 0) {
+        simklID = MRIntegerValue(ids[@"simkl_id"]);
+    }
+    if (simklID > 0) {
+        merged.simklID = simklID;
+    }
+
+    NSString *slug = MRNullableStringValue(ids[@"slug"]);
+    if (slug.length > 0) {
+        merged.slug = slug;
+    }
+
+    NSDictionary *external = MRExternalIDs(ids);
+    if (external.count > 0) {
+        NSMutableDictionary *combined = [merged.externalIDs mutableCopy];
+        if (combined == nil) {
+            combined = [NSMutableDictionary dictionary];
+        }
+        [combined addEntriesFromDictionary:external];
+        merged.externalIDs = combined;
+    }
+
+    NSString *title = MRNullableStringValue(entry[@"title"]);
+    if (title.length > 0) {
+        merged.title = title;
+    }
+    NSInteger year = MRIntegerValue(entry[@"year"]);
+    if (year > 0) {
+        merged.year = year;
+    }
+
+    NSString *poster = MRNullableStringValue(entry[@"poster"]);
+    if (poster.length > 0) {
+        merged.poster = poster;
+    }
+    NSString *fanart = MRNullableStringValue(entry[@"fanart"]);
+    if (fanart.length > 0) {
+        merged.fanart = fanart;
+    }
+
+    NSArray *genres = MRStringArrayValue(entry[@"genres"]);
+    if (genres.count > 0) {
+        merged.genres = genres;
+    }
+    NSInteger runtime = MRIntegerValue(entry[@"runtime"]);
+    if (runtime > 0) {
+        merged.runtime = runtime;
+    }
+    NSDictionary *ratings = MRDictionaryValue(entry[@"ratings"]);
+    if (ratings.count > 0) {
+        merged.ratings = ratings;
+    }
+
+    NSString *overview = MRNullableStringValue(entry[@"overview"]);
+    if (overview.length > 0) {
+        merged.overview = overview;
+    }
+    NSString *network = MRNullableStringValue(entry[@"network"]);
+    if (network.length > 0) {
+        merged.network = network;
+    }
+    NSString *country = MRNullableStringValue(entry[@"country"]);
+    if (country.length > 0) {
+        merged.country = country;
+    }
+
+    NSString *releaseDate = MRNullableStringValue(entry[@"first_aired"]);
+    if (releaseDate.length == 0) {
+        releaseDate = MRNullableStringValue(entry[@"released"]);
+    }
+    if (releaseDate.length == 0) {
+        releaseDate = MRNullableStringValue(entry[@"release_date"]);
+    }
+    if (releaseDate.length > 0) {
+        merged.releaseDate = releaseDate;
+    }
+
+    NSString *airStatus = MRNullableStringValue(entry[@"status"]);
+    if (airStatus.length > 0) {
+        merged.airStatus = airStatus;
+    }
+
+    NSInteger totalEpisodes = MRIntegerValue(entry[@"total_episodes"]);
+    if (totalEpisodes > 0) {
+        merged.totalEpisodesCount = totalEpisodes;
+    }
+
+    merged.detailFetchedAt = [NSDate date];
+    return merged;
+}
+
 + (instancetype)itemWithDictionaryRepresentation:(NSDictionary *)dictionary {
     MRMediaItem *item = [[self alloc] init];
     NSDictionary *entry = MRDictionaryValue(dictionary);
@@ -196,6 +329,11 @@ static NSDictionary *MRExternalIDs(id value) {
     item.runtime = MRIntegerValue(entry[@"runtime"]);
     item.ratings = MRDictionaryValue(entry[@"ratings"]);
     item.externalIDs = MRDictionaryValue(entry[@"externalIDs"]);
+    item.overview = MRStringValue(entry[@"overview"]);
+    item.network = MRStringValue(entry[@"network"]);
+    item.country = MRStringValue(entry[@"country"]);
+    item.releaseDate = MRStringValue(entry[@"releaseDate"]);
+    item.airStatus = MRStringValue(entry[@"airStatus"]);
 
     item.watchStatus = (MRWatchStatus)MRIntegerValue(entry[@"watchStatus"]);
     item.userRating = MRIntegerValue(entry[@"userRating"]);
@@ -229,6 +367,11 @@ static NSDictionary *MRExternalIDs(id value) {
     dictionary[@"runtime"] = [NSNumber numberWithInteger:self.runtime];
     dictionary[@"ratings"] = self.ratings ?: @{};
     dictionary[@"externalIDs"] = self.externalIDs ?: @{};
+    dictionary[@"overview"] = self.overview ?: @"";
+    dictionary[@"network"] = self.network ?: @"";
+    dictionary[@"country"] = self.country ?: @"";
+    dictionary[@"releaseDate"] = self.releaseDate ?: @"";
+    dictionary[@"airStatus"] = self.airStatus ?: @"";
 
     dictionary[@"watchStatus"] = [NSNumber numberWithInteger:self.watchStatus];
     dictionary[@"userRating"] = [NSNumber numberWithInteger:self.userRating];
@@ -286,6 +429,11 @@ static NSDictionary *MRExternalIDs(id value) {
     copy.runtime = self.runtime;
     copy.ratings = self.ratings;
     copy.externalIDs = self.externalIDs;
+    copy.overview = self.overview;
+    copy.network = self.network;
+    copy.country = self.country;
+    copy.releaseDate = self.releaseDate;
+    copy.airStatus = self.airStatus;
 
     copy.watchStatus = self.watchStatus;
     copy.userRating = self.userRating;
