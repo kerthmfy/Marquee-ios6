@@ -1,0 +1,5 @@
+[
+  { "name": "Drama", "slug": "drama", "count": 120 },
+  { "name": "Science Fiction", "slug": "science-fiction", "count": 80 },
+  { "name": "Erotica", "slug": "erotica", "count": 10 }
+]

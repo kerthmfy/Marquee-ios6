@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Genre Drama One",
+    "year": 2021,
+    "ids": { "simkl_id": 601, "slug": "genre-drama-one" },
+    "poster": "poster/one",
+    "genres": ["Drama"],
+    "ratings": { "simkl": 7.8 },
+    "watched": 800
+  },
+  {
+    "title": "Genre Sci-Fi Two",
+    "year": 2017,
+    "ids": { "simkl_id": 602, "slug": "genre-sci-fi-two" },
+    "poster": "poster/two",
+    "genres": ["Science Fiction"],
+    "ratings": { "simkl": 8.1 },
+    "watched": 2000
+  }
+]

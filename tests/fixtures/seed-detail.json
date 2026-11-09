@@ -1,0 +1,25 @@
+{
+  "title": "Seed Show",
+  "year": 2019,
+  "genres": ["Drama", "Science Fiction"],
+  "ratings": { "simkl": 8.4 },
+  "ids": { "simkl": 501, "slug": "seed-show" },
+  "users_recommendations": [
+    {
+      "title": "Recommended One",
+      "year": 2020,
+      "type": "tv",
+      "ids": { "simkl_id": 5011, "slug": "recommended-one" },
+      "poster": "poster/rec-one"
+    }
+  ],
+  "similar": [
+    {
+      "title": "Similar One",
+      "year": 2018,
+      "type": "tv",
+      "ids": { "simkl_id": 5012, "slug": "similar-one" },
+      "poster": "poster/similar-one"
+    }
+  ]
+}

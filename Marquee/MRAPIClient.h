@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 #import "MRMediaType.h"
 #import "MRSyncEngine.h"
+#import "MRRecommendationDataProviding.h"
 
 @class MRResponseCache;
 @class MRQuotaTracker;
@@ -21,7 +22,7 @@
 // language=en (where applicable), and never touch the public response cache.
 // Write POSTs are never retried by this layer; MRWriteService owns write retry
 // policy so attempts survive the process.
-@interface MRAPIClient : NSObject <MRSyncDataProviding>
+@interface MRAPIClient : NSObject <MRSyncDataProviding, MRRecommendationDataProviding>
 
 - (instancetype)initWithHTTPClient:(id<MRHTTPClient>)httpClient
                      tokenProvider:(id<MRTokenProviding>)tokenProvider

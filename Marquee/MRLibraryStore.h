@@ -64,6 +64,8 @@ typedef NS_ENUM(NSInteger, MRLibraryStoreErrorCode) {
 - (NSArray *)itemsForType:(MRMediaType)type status:(MRWatchStatus)status;
 - (NSDictionary *)countsByStatusForType:(MRMediaType)type;
 
+- (BOOL)updateItem:(MRMediaItem *)item error:(NSError **)error;
+
 - (BOOL)applyResolvedStatus:(MRWatchStatus)status
                 forItemType:(MRMediaType)type
                     simklID:(NSInteger)simklID

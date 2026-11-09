@@ -623,6 +623,32 @@ static NSDate *MRLibraryDateValue(id value) {
     return YES;
 }
 
+- (BOOL)updateItem:(MRMediaItem *)item error:(NSError **)error {
+    if (item == nil || item.simklID <= 0) {
+        if (error != NULL) {
+            *error = [MRError errorWithKind:MRErrorKindNotFound];
+        }
+        return NO;
+    }
+    NSMutableArray *updated = [NSMutableArray arrayWithArray:[self copiedItems:_mutableItems]];
+    MRMediaItem *target = nil;
+    for (MRMediaItem *candidate in updated) {
+        if (candidate.type == item.type && candidate.simklID == item.simklID) {
+            target = candidate;
+            break;
+        }
+    }
+    if (target == nil) {
+        if (error != NULL) {
+            *error = [MRError errorWithKind:MRErrorKindNotFound];
+        }
+        return NO;
+    }
+    NSUInteger index = [updated indexOfObjectIdenticalTo:target];
+    [updated replaceObjectAtIndex:index withObject:[item copy]];
+    return [self persistChangedItems:updated error:error];
+}
+
 - (BOOL)applyResolvedStatus:(MRWatchStatus)status
                 forItemType:(MRMediaType)type
                     simklID:(NSInteger)simklID

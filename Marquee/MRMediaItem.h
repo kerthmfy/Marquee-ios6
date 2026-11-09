@@ -20,6 +20,7 @@
 @property (nonatomic, copy) NSString *fanart;
 @property (nonatomic, copy) NSArray *genres;
 @property (nonatomic, assign) NSInteger runtime;
+@property (nonatomic, assign) NSInteger watchedCount;
 @property (nonatomic, copy) NSDictionary *ratings;
 @property (nonatomic, copy) NSDictionary *externalIDs;
 @property (nonatomic, copy) NSString *overview;

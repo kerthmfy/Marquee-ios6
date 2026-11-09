@@ -122,6 +122,7 @@ static NSDictionary *MRExternalIDs(id value) {
     self.fanart = MRStringValue(entry[@"fanart"]);
     self.genres = MRStringArrayValue(entry[@"genres"]);
     self.runtime = MRIntegerValue(entry[@"runtime"]);
+    self.watchedCount = MRIntegerValue(entry[@"watched"]);
     self.ratings = MRDictionaryValue(entry[@"ratings"]);
     self.externalIDs = MRExternalIDs(ids);
 }
@@ -327,6 +328,7 @@ static NSDictionary *MRExternalIDs(id value) {
     item.fanart = MRStringValue(entry[@"fanart"]);
     item.genres = MRStringArrayValue(entry[@"genres"]);
     item.runtime = MRIntegerValue(entry[@"runtime"]);
+    item.watchedCount = MRIntegerValue(entry[@"watchedCount"]);
     item.ratings = MRDictionaryValue(entry[@"ratings"]);
     item.externalIDs = MRDictionaryValue(entry[@"externalIDs"]);
     item.overview = MRStringValue(entry[@"overview"]);
@@ -365,6 +367,7 @@ static NSDictionary *MRExternalIDs(id value) {
     dictionary[@"fanart"] = self.fanart ?: @"";
     dictionary[@"genres"] = self.genres ?: @[];
     dictionary[@"runtime"] = [NSNumber numberWithInteger:self.runtime];
+    dictionary[@"watchedCount"] = [NSNumber numberWithInteger:self.watchedCount];
     dictionary[@"ratings"] = self.ratings ?: @{};
     dictionary[@"externalIDs"] = self.externalIDs ?: @{};
     dictionary[@"overview"] = self.overview ?: @"";
@@ -427,6 +430,7 @@ static NSDictionary *MRExternalIDs(id value) {
     copy.fanart = self.fanart;
     copy.genres = self.genres;
     copy.runtime = self.runtime;
+    copy.watchedCount = self.watchedCount;
     copy.ratings = self.ratings;
     copy.externalIDs = self.externalIDs;
     copy.overview = self.overview;
