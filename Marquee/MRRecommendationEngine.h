@@ -24,6 +24,10 @@
 @property (nonatomic, assign) double baseScore;
 @property (nonatomic, assign) MRFeedSource source;
 @property (nonatomic, copy) NSArray *proxyGenres;
+@property (nonatomic, copy) NSString *seedIdentifier;
+@property (nonatomic, copy) NSString *seedTitle;
+@property (nonatomic, assign) NSInteger seedTier;
+@property (nonatomic, copy) NSString *genreName;
 
 + (instancetype)candidateWithItem:(MRMediaItem *)item
                         baseScore:(double)baseScore
@@ -42,8 +46,13 @@
                                clock:(id<MRClock>)clock;
 
 - (void)generateWithCompletion:(void (^)(NSArray *sections, NSError *error))completion;
+// Foreground and notification refreshes honor a five-minute throttle unless
+// force is YES. A forced refresh also bypasses the six-hour cache check.
+- (void)refreshWithForce:(BOOL)force
+              completion:(void (^)(NSArray *sections, NSError *error))completion;
 - (NSArray *)cachedSections;
 - (void)invalidateCache;
+- (NSString *)currentFingerprint;
 
 // Candidate normalization and scoring seams, shared with the row builder.
 - (NSArray *)candidatesFromSeedDetail:(NSDictionary *)detail

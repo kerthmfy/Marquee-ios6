@@ -18,7 +18,8 @@ typedef NS_ENUM(NSInteger, MRFeedSource) {
     MRFeedSourceGenre,
     MRFeedSourceWatchlist,
     MRFeedSourceTrending,
-    MRFeedSourcePublicTrending
+    MRFeedSourcePublicTrending,
+    MRFeedSourceEmptyState
 };
 
 // One unit of the For You feed: a hero card or a horizontal row. Items are
@@ -39,5 +40,8 @@ typedef NS_ENUM(NSInteger, MRFeedSource) {
 + (instancetype)rowSectionWithSource:(MRFeedSource)source
                                title:(NSString *)title
                                items:(NSArray *)items;
+
+- (NSDictionary *)dictionaryRepresentation;
++ (instancetype)sectionWithDictionaryRepresentation:(NSDictionary *)dictionary;
 
 @end

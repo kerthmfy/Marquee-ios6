@@ -30,6 +30,7 @@ void MRRunWriteReconciliationTests(void);
 void MRRunPreferencesStoreTests(void);
 void MRRunTasteProfileTests(void);
 void MRRunRecommendationCandidateTests(void);
+void MRRunRecommendationRowsTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -104,6 +105,9 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"recommendation candidates");
         MRRunRecommendationCandidateTests();
+
+        MRTestBeginSuite(@"recommendation rows");
+        MRRunRecommendationRowsTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {
