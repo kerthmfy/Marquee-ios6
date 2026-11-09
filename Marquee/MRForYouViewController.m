@@ -613,7 +613,9 @@ static CGFloat MRForYouAvailableHeight(void) {
         [[MRDetailViewController alloc] initWithItem:target
                                            apiClient:self.environment.apiClient
                                         libraryStore:store
-                                          imageCache:self.imageCache];
+                                          imageCache:self.imageCache
+                                              outbox:self.environment.outbox
+                                        writeService:self.environment.writeService];
     [self.navigationController pushViewController:detail animated:YES];
 }
 

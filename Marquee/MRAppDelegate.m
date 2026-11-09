@@ -8,6 +8,7 @@
 #import "MRImageCache.h"
 #import "MRKeychainTokenStore.h"
 #import "MRLibraryStore.h"
+#import "MROutbox.h"
 #import "MRQuotaTracker.h"
 #import "MRResponseCache.h"
 #import "MRRootTabBarController.h"
@@ -16,6 +17,8 @@
 #import "MRSyncEngine.h"
 #import "MRTokenSession.h"
 #import "MRUserProfile.h"
+#import "MRWriteResult.h"
+#import "MRWriteService.h"
 
 @interface MRAppDelegate ()
 @property (nonatomic, strong) id<MRClock> clock;
@@ -185,12 +188,48 @@
                                                                 clock:self.clock];
     self.environment.syncEngine = engine;
 
+    MROutbox *outbox = [[MROutbox alloc] initWithStorage:storage];
+    [outbox load:NULL];
+    self.environment.outbox = outbox;
+    self.environment.writeService =
+        [[MRWriteService alloc] initWithAPIClient:self.environment.apiClient
+                                          outbox:outbox
+                                     libraryStore:store
+                                           clock:self.clock];
+
     if (!loaded && self.environment.auth.isSignedIn) {
         [engine syncWithCompletion:^(NSError *error) {
             // The For You header observes MRSyncStatusDidChangeNotification.
         }];
     }
+    [self flushOutbox];
     [self postLibraryChangeForStore:store];
+}
+
+// Drains persisted writes in the background. Transient failures leave the
+// entries queued; the detail screen and the next launch will try again.
+- (void)flushOutbox {
+    MROutbox *outbox = self.environment.outbox;
+    MRWriteService *service = self.environment.writeService;
+    if (outbox.pendingCount == 0 || service == nil) {
+        return;
+    }
+
+    __weak MRAppDelegate *weakSelf = self;
+    [service sendEntries:@[] completion:^(MRWriteResult *result) {
+        MRAppDelegate *strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
+        BOOL progressed =
+            result.succeededEntries.count + result.permanentlyFailedEntries.count > 0;
+        BOOL stoppedOnTransient = result.error != nil &&
+            result.permanentlyFailedEntries.count == 0;
+        if (!stoppedOnTransient && progressed &&
+            strongSelf.environment.outbox.pendingCount > 0) {
+            [strongSelf flushOutbox];
+        }
+    }];
 }
 
 - (void)refreshProfile

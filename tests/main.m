@@ -26,6 +26,7 @@ void MRRunLibraryFilterTests(void);
 void MRRunRelatedItemTests(void);
 void MRRunOutboxTests(void);
 void MRRunWriteServiceTests(void);
+void MRRunWriteReconciliationTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -88,6 +89,9 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"write service");
         MRRunWriteServiceTests();
+
+        MRTestBeginSuite(@"write reconciliation");
+        MRRunWriteReconciliationTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {

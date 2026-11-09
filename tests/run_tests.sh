@@ -10,7 +10,7 @@ clang -fobjc-arc -framework Foundation -framework CoreGraphics -I Marquee \
   Marquee/MRStorage.m Marquee/MRUserProfile.m Marquee/MRLibraryStore.m \
   Marquee/MRSyncEngine.m Marquee/MRAPIClient.m Marquee/MRLibraryFilter.m \
   Marquee/MROutboxEntry.m Marquee/MROutbox.m Marquee/MRWriteResult.m \
-  Marquee/MRWriteService.m \
+  Marquee/MRWriteService.m Marquee/MRDetailActions.m \
   Marquee/MRFeedSection.m Marquee/MRPublicFeedBuilder.m \
   Marquee/MRTokenSession.m Marquee/MRDeviceCode.m \
   Marquee/MRDeviceFlow.m Marquee/MRSimklAuth.m \

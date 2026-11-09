@@ -9,18 +9,29 @@
 
 #import "MRAPIClient.h"
 #import "MRAppearance.h"
+#import "MRBannerView.h"
+#import "MRDetailActions.h"
 #import "MRError.h"
 #import "MRImageCache.h"
 #import "MRLayout.h"
 #import "MRLibraryStore.h"
 #import "MRMediaItem.h"
+#import "MROutbox.h"
+#import "MROutboxEntry.h"
 #import "MRPlaceholderView.h"
 #import "MRPosterCardView.h"
 #import "MRPosterImageView.h"
+#import "MRStarRatingView.h"
 #import "MRStatusPillView.h"
+#import "MRToastView.h"
 #import "MRURLBuilder.h"
+#import "MRWriteResult.h"
+#import "MRWriteService.h"
 
 static const CGFloat MRDetailCardGap = 12.0;
+
+static const NSInteger MRDetailSheetChangeStatus = 1001;
+static const NSInteger MRDetailSheetRemove = 1002;
 
 static MRDeviceClass MRDetailDeviceClass(void) {
     return [MRLayout deviceClassForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
@@ -440,17 +451,150 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
 @end
 
+#pragma mark - Action row
+
+@interface MRDetailActionRowView : UIControl
+
+@property (nonatomic, strong) UILabel *titleLabel;
+@property (nonatomic, strong) UILabel *valueLabel;
+@property (nonatomic, strong) UILabel *chevronLabel;
+@property (nonatomic, assign) BOOL destructive;
+@property (nonatomic, assign) BOOL showsChevron;
+
+- (void)configureWithTitle:(NSString *)title
+                     value:(NSString *)value
+               destructive:(BOOL)destructive;
+
+@end
+
+@implementation MRDetailActionRowView
+
+- (id)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor clearColor];
+
+        _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _titleLabel.backgroundColor = [UIColor clearColor];
+        _titleLabel.font = [MRAppearance bodyFont];
+        _titleLabel.textColor = [MRAppearance ink];
+        _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [self addSubview:_titleLabel];
+
+        _valueLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _valueLabel.backgroundColor = [UIColor clearColor];
+        _valueLabel.font = [MRAppearance smallFont];
+        _valueLabel.textColor = [MRAppearance muted];
+        _valueLabel.textAlignment = NSTextAlignmentRight;
+        _valueLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [self addSubview:_valueLabel];
+
+        _chevronLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _chevronLabel.backgroundColor = [UIColor clearColor];
+        _chevronLabel.font = [UIFont boldSystemFontOfSize:14.0];
+        _chevronLabel.textColor = [MRAppearance muted];
+        _chevronLabel.textAlignment = NSTextAlignmentRight;
+        _chevronLabel.text = @"›";
+        [self addSubview:_chevronLabel];
+
+        _showsChevron = YES;
+    }
+    return self;
+}
+
+- (void)configureWithTitle:(NSString *)title
+                     value:(NSString *)value
+               destructive:(BOOL)destructive {
+    self.destructive = destructive;
+    self.titleLabel.text = title;
+    self.valueLabel.text = value != nil ? value : @"";
+    self.titleLabel.textColor = destructive ? [MRAppearance droppedColor]
+                                            : [MRAppearance ink];
+}
+
+- (void)setShowsChevron:(BOOL)showsChevron {
+    _showsChevron = showsChevron;
+    self.chevronLabel.hidden = !showsChevron;
+    [self setNeedsLayout];
+}
+
+- (void)setHighlighted:(BOOL)highlighted {
+    [super setHighlighted:highlighted];
+    self.backgroundColor = highlighted
+        ? [UIColor colorWithWhite:0.0 alpha:0.06]
+        : [UIColor clearColor];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+
+    MRDeviceClass device = MRDetailDeviceClass();
+    CGFloat inset = device == MRDeviceClassTablet ? 16.0 : 12.0;
+    CGFloat width = CGRectGetWidth(self.bounds);
+    CGFloat height = CGRectGetHeight(self.bounds);
+    CGFloat chevronWidth = self.showsChevron ? 12.0 : 0.0;
+    CGFloat valueWidth = floor((width - inset * 2.0) * 0.46);
+
+    self.titleLabel.font = device == MRDeviceClassTablet
+        ? [UIFont systemFontOfSize:15.0] : [MRAppearance bodyFont];
+    self.valueLabel.font = device == MRDeviceClassTablet
+        ? [UIFont systemFontOfSize:13.0] : [MRAppearance smallFont];
+
+    self.chevronLabel.frame = CGRectMake(width - inset - chevronWidth, 0.0,
+                                         chevronWidth, height);
+    self.valueLabel.frame =
+        CGRectMake(width - inset - chevronWidth - valueWidth - 6.0, 0.0,
+                   MAX(0.0, valueWidth), height);
+    self.titleLabel.frame =
+        CGRectMake(inset, 0.0,
+                   MAX(0.0, width - inset * 2.0 - valueWidth - chevronWidth - 18.0),
+                   height);
+}
+
+- (void)drawRect:(CGRect)rect {
+    CGFloat scale = self.contentScaleFactor;
+    if (scale <= 0.0) {
+        scale = 1.0;
+    }
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    if (context == NULL) {
+        return;
+    }
+    [[MRAppearance sep] setFill];
+    CGContextFillRect(context, CGRectMake(0.0, CGRectGetHeight(self.bounds) - 1.0 / scale,
+                                          CGRectGetWidth(self.bounds), 1.0 / scale));
+}
+
+@end
+
 #pragma mark - Controller
 
-@interface MRDetailViewController ()
+@interface MRDetailViewController () <UIActionSheetDelegate>
 
 @property (nonatomic, strong) MRMediaItem *item;
 @property (nonatomic, strong) MRAPIClient *apiClient;
 @property (nonatomic, strong) MRLibraryStore *libraryStore;
 @property (nonatomic, strong) MRImageCache *imageCache;
+@property (nonatomic, strong) MROutbox *outbox;
+@property (nonatomic, strong) MRWriteService *writeService;
+@property (nonatomic, strong) MRDetailActions *actions;
 
 @property (nonatomic, strong) UIScrollView *scrollView;
 @property (nonatomic, strong) MRDetailHeroView *heroView;
+@property (nonatomic, strong) UIView *actionsCard;
+@property (nonatomic, strong) UIButton *primaryButton;
+@property (nonatomic, strong) MRDetailActionRowView *rateRow;
+@property (nonatomic, strong) MRStarRatingView *ratingView;
+@property (nonatomic, strong) UIButton *removeRatingButton;
+@property (nonatomic, strong) MRDetailActionRowView *statusRow;
+@property (nonatomic, strong) MRDetailActionRowView *removeRow;
+@property (nonatomic, strong) MRBannerView *bannerView;
+@property (nonatomic, copy) NSArray *statusChoices;
+@property (nonatomic, assign) BOOL ratingExpanded;
+@property (nonatomic, assign) BOOL flushing;
+@property (nonatomic, assign) BOOL flushAgain;
+@property (nonatomic, copy) NSString *removeEntryID;
+@property (nonatomic, strong) id libraryObserver;
 @property (nonatomic, strong) UIView *offlineCard;
 @property (nonatomic, strong) UILabel *offlineLabel;
 @property (nonatomic, strong) UIButton *retryButton;
@@ -485,13 +629,22 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 - (instancetype)initWithItem:(MRMediaItem *)item
                    apiClient:(MRAPIClient *)apiClient
                 libraryStore:(MRLibraryStore *)libraryStore
-                  imageCache:(MRImageCache *)imageCache {
+                  imageCache:(MRImageCache *)imageCache
+                      outbox:(MROutbox *)outbox
+                writeService:(MRWriteService *)writeService {
     self = [super init];
     if (self) {
         _item = [item copy];
         _apiClient = apiClient;
         _libraryStore = libraryStore;
         _imageCache = imageCache;
+        _outbox = outbox;
+        _writeService = writeService;
+        if (libraryStore != nil && writeService != nil) {
+            _actions = [[MRDetailActions alloc] initWithLibraryStore:libraryStore
+                                                              outbox:outbox
+                                                        writeService:writeService];
+        }
         _similarItems = @[];
         _recommendedItems = @[];
         _infoRows = @[];
@@ -499,8 +652,25 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     return self;
 }
 
+- (instancetype)initWithItem:(MRMediaItem *)item
+                   apiClient:(MRAPIClient *)apiClient
+                libraryStore:(MRLibraryStore *)libraryStore
+                  imageCache:(MRImageCache *)imageCache {
+    return [self initWithItem:item
+                    apiClient:apiClient
+                 libraryStore:libraryStore
+                   imageCache:imageCache
+                       outbox:nil
+                 writeService:nil];
+}
+
 - (id)init {
-    return [self initWithItem:nil apiClient:nil libraryStore:nil imageCache:nil];
+    return [self initWithItem:nil
+                    apiClient:nil
+                 libraryStore:nil
+                   imageCache:nil
+                       outbox:nil
+                 writeService:nil];
 }
 
 - (void)viewDidLoad {
@@ -517,10 +687,28 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     [self buildContent];
     [self updateContent];
     [self fetchDetail];
+
+    __weak MRDetailViewController *weakSelf = self;
+    self.libraryObserver = [[NSNotificationCenter defaultCenter]
+        addObserverForName:MRLibraryDidChangeNotification
+                    object:nil
+                     queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *note) {
+        [weakSelf libraryDidChange];
+    }];
 }
 
 - (void)dealloc {
     [self.detailTask cancel];
+    if (self.libraryObserver != nil) {
+        [[NSNotificationCenter defaultCenter] removeObserver:self.libraryObserver];
+    }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self refreshItemFromStore];
+    [self updateContent];
 }
 
 #pragma mark - View construction
@@ -549,6 +737,9 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     };
     [scrollView addSubview:hero];
     self.heroView = hero;
+
+    [self buildActionsCard];
+    [self buildBanner];
 
     UIView *offline = [[UIView alloc] initWithFrame:CGRectZero];
     [MRAppearance styleCardView:offline first:YES last:YES];
@@ -679,6 +870,93 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     self.footerLink = footerLink;
 }
 
+- (void)buildActionsCard {
+    UIView *card = [[UIView alloc] initWithFrame:CGRectZero];
+    [MRAppearance styleCardView:card first:YES last:YES];
+    [self.scrollView addSubview:card];
+    self.actionsCard = card;
+
+    UIButton *primary = [UIButton buttonWithType:UIButtonTypeCustom];
+    [primary setBackgroundImage:[MRAppearance actionButtonImage]
+                       forState:UIControlStateNormal];
+    [primary setBackgroundImage:[MRAppearance actionButtonImage]
+                       forState:UIControlStateHighlighted];
+    primary.titleLabel.font = [UIFont boldSystemFontOfSize:15.0];
+    [primary setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [primary setTitleShadowColor:[UIColor colorWithWhite:0.0 alpha:0.45]
+                        forState:UIControlStateNormal];
+    primary.titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+    [primary addTarget:self
+                action:@selector(primaryActionTapped:)
+      forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:primary];
+    self.primaryButton = primary;
+
+    __weak MRDetailViewController *weakSelf = self;
+
+    MRDetailActionRowView *rateRow =
+        [[MRDetailActionRowView alloc] initWithFrame:CGRectZero];
+    [rateRow configureWithTitle:@"Rate" value:nil destructive:NO];
+    [rateRow addTarget:self
+                action:@selector(rateRowTapped:)
+      forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:rateRow];
+    self.rateRow = rateRow;
+
+    MRStarRatingView *stars =
+        [[MRStarRatingView alloc] initWithFrame:CGRectZero];
+    stars.hidden = YES;
+    stars.ratingHandler = ^(NSInteger rating) {
+        [weakSelf setRating:rating];
+    };
+    [card addSubview:stars];
+    self.ratingView = stars;
+
+    UIButton *removeRating = [UIButton buttonWithType:UIButtonTypeCustom];
+    removeRating.backgroundColor = [UIColor clearColor];
+    removeRating.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+    removeRating.titleLabel.font = [UIFont boldSystemFontOfSize:11.0];
+    [removeRating setTitle:@"Remove rating" forState:UIControlStateNormal];
+    [removeRating setTitleColor:[MRAppearance link] forState:UIControlStateNormal];
+    [removeRating setTitleColor:[MRAppearance muted]
+                       forState:UIControlStateDisabled];
+    [removeRating addTarget:self
+                     action:@selector(removeRatingTapped:)
+           forControlEvents:UIControlEventTouchUpInside];
+    removeRating.hidden = YES;
+    [card addSubview:removeRating];
+    self.removeRatingButton = removeRating;
+
+    MRDetailActionRowView *statusRow =
+        [[MRDetailActionRowView alloc] initWithFrame:CGRectZero];
+    [statusRow configureWithTitle:@"Change Status" value:nil destructive:NO];
+    [statusRow addTarget:self
+                  action:@selector(changeStatusTapped:)
+        forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:statusRow];
+    self.statusRow = statusRow;
+
+    MRDetailActionRowView *removeRow =
+        [[MRDetailActionRowView alloc] initWithFrame:CGRectZero];
+    [removeRow configureWithTitle:@"Remove from Library" value:nil destructive:YES];
+    removeRow.showsChevron = NO;
+    [removeRow addTarget:self
+                  action:@selector(removeTapped:)
+        forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:removeRow];
+    self.removeRow = removeRow;
+}
+
+- (void)buildBanner {
+    MRBannerView *banner = [[MRBannerView alloc] initWithFrame:CGRectZero];
+    __weak MRDetailViewController *weakSelf = self;
+    banner.retryHandler = ^{
+        [weakSelf flushOutbox];
+    };
+    [self.view addSubview:banner];
+    self.bannerView = banner;
+}
+
 #pragma mark - Content
 
 - (void)updateContent {
@@ -729,7 +1007,42 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
                                       tapHandler:relatedTap];
     }
 
+    [self updateActionsCard];
     [self.view setNeedsLayout];
+}
+
+- (void)updateActionsCard {
+    BOOL available = self.actions != nil && self.item != nil;
+    self.actionsCard.hidden = !available;
+    if (!available) {
+        return;
+    }
+
+    MRMediaItem *item = self.item;
+    BOOL tracked = item.watchStatus != MRWatchStatusNone;
+
+    MRDetailPrimaryAction action = [MRDetailActions primaryActionForItem:item];
+    [self.primaryButton setTitle:[MRDetailActions titleForPrimaryAction:action
+                                                                  item:item]
+                        forState:UIControlStateNormal];
+
+    NSString *ratingValue = item.userRating > 0
+        ? [NSString stringWithFormat:@"★ %ld", (long)item.userRating]
+        : @"Not rated";
+    [self.rateRow configureWithTitle:@"Rate" value:ratingValue destructive:NO];
+
+    self.ratingView.rating = item.userRating;
+    self.removeRatingButton.enabled = item.userRating > 0;
+
+    [self.statusRow configureWithTitle:@"Change Status"
+                                 value:tracked ? MRWatchStatusDisplayName(item.watchStatus)
+                                               : nil
+                           destructive:NO];
+    self.statusRow.hidden = !tracked;
+    self.removeRow.hidden = !tracked;
+
+    self.ratingView.hidden = !self.ratingExpanded;
+    self.removeRatingButton.hidden = !self.ratingExpanded;
 }
 
 - (void)rebuildInfoRows {
@@ -868,6 +1181,326 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
 #pragma mark - Actions
 
+- (void)primaryActionTapped:(UIButton *)sender {
+    if (self.actions == nil) {
+        return;
+    }
+
+    MRDetailPrimaryAction action = [MRDetailActions primaryActionForItem:self.item];
+    if (action == MRDetailPrimaryActionChangeStatus) {
+        [self showStatusSheet];
+        return;
+    }
+
+    NSError *error = nil;
+    MROutboxEntry *entry =
+        [self.actions performPrimaryActionForItem:self.item error:&error];
+    [self handleEnqueuedEntry:entry error:error];
+}
+
+- (void)rateRowTapped:(id)sender {
+    self.ratingExpanded = !self.ratingExpanded;
+    [self updateActionsCard];
+    [self.view setNeedsLayout];
+}
+
+- (void)setRating:(NSInteger)rating {
+    if (rating == self.item.userRating) {
+        return;
+    }
+    NSError *error = nil;
+    MROutboxEntry *entry = [self.actions setRating:rating
+                                           forItem:self.item
+                                             error:&error];
+    [self handleEnqueuedEntry:entry error:error];
+}
+
+- (void)removeRatingTapped:(id)sender {
+    NSError *error = nil;
+    MROutboxEntry *entry = [self.actions clearRatingForItem:self.item error:&error];
+    [self handleEnqueuedEntry:entry error:error];
+}
+
+- (void)changeStatusTapped:(id)sender {
+    [self showStatusSheet];
+}
+
+- (void)removeTapped:(id)sender {
+    [self showRemoveSheet];
+}
+
+- (void)showStatusSheet {
+    if (self.actions == nil || self.item == nil) {
+        return;
+    }
+
+    NSArray *statuses = [MRDetailActions validStatusesForType:self.item.type];
+    self.statusChoices = statuses;
+
+    UIActionSheet *sheet =
+        [[UIActionSheet alloc] initWithTitle:@"Change Status"
+                                   delegate:self
+                          cancelButtonTitle:nil
+                     destructiveButtonTitle:nil
+                          otherButtonTitles:nil];
+    for (NSNumber *number in statuses) {
+        MRWatchStatus status = (MRWatchStatus)[number integerValue];
+        NSString *title = MRWatchStatusDisplayName(status);
+        if (status == self.item.watchStatus) {
+            title = [@"✓ " stringByAppendingString:title];
+        }
+        [sheet addButtonWithTitle:title];
+    }
+    [sheet addButtonWithTitle:@"Cancel"];
+    sheet.cancelButtonIndex = sheet.numberOfButtons - 1;
+    sheet.tag = MRDetailSheetChangeStatus;
+    [self presentActionSheet:sheet];
+}
+
+- (void)showRemoveSheet {
+    if (self.actions == nil || self.item == nil) {
+        return;
+    }
+
+    NSString *title = [NSString stringWithFormat:@"Remove \"%@\" from your library?",
+                       self.item.title.length > 0 ? self.item.title : @"this title"];
+    UIActionSheet *sheet =
+        [[UIActionSheet alloc] initWithTitle:title
+                                   delegate:self
+                          cancelButtonTitle:@"Cancel"
+                     destructiveButtonTitle:@"Remove from Library"
+                          otherButtonTitles:nil];
+    sheet.tag = MRDetailSheetRemove;
+    [self presentActionSheet:sheet];
+}
+
+- (void)presentActionSheet:(UIActionSheet *)sheet {
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        CGRect anchor = [self.primaryButton convertRect:self.primaryButton.bounds
+                                                 toView:self.view];
+        [sheet showFromRect:anchor inView:self.view animated:YES];
+    } else {
+        [sheet showInView:self.view];
+    }
+}
+
+- (void)actionSheet:(UIActionSheet *)actionSheet
+    clickedButtonAtIndex:(NSInteger)buttonIndex {
+    if (actionSheet.tag == MRDetailSheetChangeStatus) {
+        if (buttonIndex < 0 || buttonIndex >= (NSInteger)self.statusChoices.count) {
+            return;
+        }
+        MRWatchStatus status = (MRWatchStatus)
+            [[self.statusChoices objectAtIndex:(NSUInteger)buttonIndex] integerValue];
+        if (status == self.item.watchStatus) {
+            return;
+        }
+        NSError *error = nil;
+        MROutboxEntry *entry = [self.actions setWatchStatus:status
+                                                    forItem:self.item
+                                                      error:&error];
+        [self handleEnqueuedEntry:entry error:error];
+        return;
+    }
+
+    if (actionSheet.tag == MRDetailSheetRemove &&
+        buttonIndex == actionSheet.destructiveButtonIndex) {
+        NSError *error = nil;
+        MROutboxEntry *entry = [self.actions removeFromLibraryForItem:self.item
+                                                                error:&error];
+        [self handleEnqueuedEntry:entry error:error];
+    }
+}
+
+- (void)handleEnqueuedEntry:(MROutboxEntry *)entry error:(NSError *)error {
+    if (entry == nil) {
+        if (error != nil) {
+            [self showAlertWithTitle:@"Couldn't Save"
+                             message:error.localizedDescription];
+        }
+        return;
+    }
+
+    [self applyEntryToLocalItem:entry];
+    if (entry.kind == MROutboxEntryKindRemove) {
+        self.removeEntryID = entry.entryID;
+    }
+    [self updateContent];
+    [self.view setNeedsLayout];
+    [MRToastView showMessage:@"Saved" inView:self.view];
+    [self flushOutbox];
+}
+
+- (void)applyEntryToLocalItem:(MROutboxEntry *)entry {
+    switch (entry.kind) {
+        case MROutboxEntryKindStatus:
+        case MROutboxEntryKindHistoryWhole:
+            if (entry.status != MRWatchStatusNone) {
+                self.item.watchStatus = entry.status;
+            }
+            break;
+        case MROutboxEntryKindHistoryEpisode:
+            // The next-episode marker comes from sync; leave it until the
+            // response or the next refresh resolves it.
+            break;
+        case MROutboxEntryKindRating:
+            self.item.userRating = entry.rating;
+            break;
+        case MROutboxEntryKindRatingRemove:
+            self.item.userRating = 0;
+            break;
+        case MROutboxEntryKindRemove:
+            // Removal is confirmed by the server before the local item drops.
+            break;
+        default:
+            break;
+    }
+}
+
+- (void)flushOutbox {
+    if (self.actions == nil) {
+        return;
+    }
+    if (self.flushing) {
+        self.flushAgain = YES;
+        return;
+    }
+
+    self.flushing = YES;
+    [self.bannerView showMessage:@"Syncing changes…"
+                           style:MRBannerStylePending
+                      retryTitle:nil];
+
+    __weak MRDetailViewController *weakSelf = self;
+    [self.actions flushWithCompletion:^(MRWriteResult *result) {
+        MRDetailViewController *strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
+        strongSelf.flushing = NO;
+        if (strongSelf.flushAgain) {
+            strongSelf.flushAgain = NO;
+            [strongSelf flushOutbox];
+            return;
+        }
+        [strongSelf handleWriteResult:result];
+    }];
+}
+
+- (void)handleWriteResult:(MRWriteResult *)result {
+    if (result == nil) {
+        return;
+    }
+
+    BOOL removeSucceeded = NO;
+    BOOL removeFailed = NO;
+    if (self.removeEntryID.length > 0) {
+        for (MROutboxEntry *entry in result.succeededEntries) {
+            if ([entry.entryID isEqualToString:self.removeEntryID]) {
+                removeSucceeded = YES;
+                break;
+            }
+        }
+        for (MROutboxEntry *entry in result.permanentlyFailedEntries) {
+            if ([entry.entryID isEqualToString:self.removeEntryID]) {
+                removeFailed = YES;
+                break;
+            }
+        }
+    }
+
+    if (removeSucceeded) {
+        self.removeEntryID = nil;
+        MRMediaItem *remaining = [self.libraryStore itemForType:self.item.type
+                                                        simklID:self.item.simklID];
+        if (remaining == nil && self.navigationController != nil) {
+            [self.bannerView hide];
+            [self.navigationController popViewControllerAnimated:YES];
+            return;
+        }
+    }
+    if (removeFailed) {
+        self.removeEntryID = nil;
+    }
+
+    if (result.permanentlyFailedEntries.count > 0) {
+        [self.bannerView hide];
+        [self showAlertWithTitle:@"Couldn't Update"
+                         message:@"Simkl couldn't save that change. Refresh the library and try again."];
+        [self fetchDetail];
+    } else if (result.error != nil) {
+        MRErrorKind kind = [MRError kindForError:result.error];
+        if (kind == MRErrorKindDailyLimit || kind == MRErrorKindAuthExpired) {
+            [self.bannerView showMessage:@"Simkl needs attention. Check your connection."
+                                   style:MRBannerStyleError
+                              retryTitle:@"Retry"];
+        } else {
+            [self.bannerView showMessage:@"Will sync when online"
+                                   style:MRBannerStyleWarning
+                              retryTitle:@"Retry"];
+        }
+        return;
+    } else {
+        [self.bannerView hide];
+    }
+
+    for (MROutboxEntry *entry in result.succeededEntries) {
+        NSNumber *resolvedNumber =
+            [result.resolvedStatuses objectForKey:entry.entryID];
+        if (resolvedNumber == nil) {
+            continue;
+        }
+        MRWatchStatus resolved = (MRWatchStatus)[resolvedNumber integerValue];
+        if (resolved != MRWatchStatusNone &&
+            entry.status != MRWatchStatusNone &&
+            resolved != entry.status) {
+            [MRToastView showMessage:
+                [NSString stringWithFormat:@"Simkl set this to %@",
+                 MRWatchStatusDisplayName(resolved)]
+                              inView:self.view];
+            break;
+        }
+    }
+
+    [self refreshItemFromStore];
+    [self updateContent];
+    [self.view setNeedsLayout];
+}
+
+- (void)refreshItemFromStore {
+    if (self.libraryStore == nil || self.item == nil) {
+        return;
+    }
+    MRMediaItem *stored =
+        [self.libraryStore itemForType:self.item.type simklID:self.item.simklID];
+    if (stored != nil) {
+        self.item = [stored copy];
+    }
+}
+
+- (void)libraryDidChange {
+    if (self.item == nil || self.libraryStore == nil) {
+        return;
+    }
+    MRMediaItem *stored =
+        [self.libraryStore itemForType:self.item.type simklID:self.item.simklID];
+    if (stored == nil) {
+        return;
+    }
+    self.item = [stored copy];
+    [self updateContent];
+    [self.view setNeedsLayout];
+}
+
+- (void)showAlertWithTitle:(NSString *)title message:(NSString *)message {
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:title
+                                                    message:message
+                                                   delegate:nil
+                                          cancelButtonTitle:@"OK"
+                                          otherButtonTitles:nil];
+    [alert show];
+}
+
 - (void)openOnSimkl {
     if (self.item.simklID <= 0) {
         return;
@@ -901,7 +1534,9 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
         [[MRDetailViewController alloc] initWithItem:target
                                            apiClient:self.apiClient
                                         libraryStore:self.libraryStore
-                                          imageCache:self.imageCache];
+                                          imageCache:self.imageCache
+                                              outbox:self.outbox
+                                        writeService:self.writeService];
     if (self.navigationController != nil) {
         [self.navigationController pushViewController:detail animated:YES];
     }
@@ -911,6 +1546,10 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+
+    CGFloat viewWidth = CGRectGetWidth(self.view.bounds);
+    self.bannerView.frame = CGRectMake(0.0, 0.0, viewWidth,
+                                       [MRBannerView height]);
 
     if (self.errorView != nil) {
         MRDeviceClass device = MRDetailDeviceClass();
@@ -924,6 +1563,55 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     }
 
     [self layoutContentForWidth:CGRectGetWidth(self.view.bounds)];
+}
+
+- (CGFloat)actionsCardHeight {
+    MRDeviceClass device = MRDetailDeviceClass();
+    BOOL tablet = device == MRDeviceClassTablet;
+    CGFloat rowHeight = tablet ? 40.0 : 36.0;
+    CGFloat height = 12.0 + (tablet ? 44.0 : 40.0) + 10.0;
+    height += rowHeight;
+    if (self.ratingExpanded) {
+        height += [MRStarRatingView preferredHeight] + 28.0;
+    }
+    if (self.item.watchStatus != MRWatchStatusNone) {
+        height += rowHeight * 2.0;
+    }
+    height += 8.0;
+    return height;
+}
+
+- (void)layoutActionsCard {
+    MRDeviceClass device = MRDetailDeviceClass();
+    BOOL tablet = device == MRDeviceClassTablet;
+    CGFloat inset = tablet ? 16.0 : 12.0;
+    CGFloat rowHeight = tablet ? 40.0 : 36.0;
+    CGFloat width = CGRectGetWidth(self.actionsCard.bounds);
+    CGFloat y = 12.0;
+
+    self.primaryButton.frame =
+        CGRectMake(inset, y, MAX(0.0, width - inset * 2.0),
+                   tablet ? 44.0 : 40.0);
+    y += (tablet ? 44.0 : 40.0) + 10.0;
+
+    self.rateRow.frame = CGRectMake(0.0, y, width, rowHeight);
+    y += rowHeight;
+
+    if (self.ratingExpanded) {
+        self.ratingView.frame =
+            CGRectMake(inset, y, MAX(0.0, width - inset * 2.0),
+                       [MRStarRatingView preferredHeight]);
+        y += [MRStarRatingView preferredHeight];
+        self.removeRatingButton.frame =
+            CGRectMake(inset, y, MAX(0.0, width - inset * 2.0), 28.0);
+        y += 28.0;
+    }
+
+    if (self.item.watchStatus != MRWatchStatusNone) {
+        self.statusRow.frame = CGRectMake(0.0, y, width, rowHeight);
+        y += rowHeight;
+        self.removeRow.frame = CGRectMake(0.0, y, width, rowHeight);
+    }
 }
 
 - (void)layoutContentForWidth:(CGFloat)width {
@@ -949,6 +1637,14 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     self.heroView.frame = CGRectMake(0.0, 0.0, width, heroHeight);
 
     CGFloat y = heroHeight + MRDetailCardGap;
+
+    BOOL showsActions = self.actionsCard != nil && !self.actionsCard.hidden;
+    if (showsActions) {
+        CGFloat cardHeight = [self actionsCardHeight];
+        self.actionsCard.frame = CGRectMake(x, y, cardWidth, cardHeight);
+        [self layoutActionsCard];
+        y += cardHeight + MRDetailCardGap;
+    }
 
     BOOL showsOffline = self.offlineVisible && self.item != nil;
     self.offlineCard.hidden = !showsOffline;

@@ -441,6 +441,11 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 + (UIColor *)completedColor  { return MRColor(31, 157, 85); }
 + (UIColor *)holdColor       { return MRColor(201, 138, 27); }
 + (UIColor *)droppedColor    { return MRColor(192, 57, 43); }
++ (UIColor *)bannerNeutralColor { return MRColor(92, 99, 108); }
++ (UIColor *)bannerPendingColor { return MRColor(84, 103, 128); }
++ (UIColor *)bannerWarningColor { return MRColor(191, 128, 24); }
++ (UIColor *)bannerErrorColor   { return MRColor(176, 46, 36); }
++ (UIColor *)toastColor         { return MRColor(34, 36, 40); }
 
 + (UIColor *)statusColorForWatchStatus:(MRWatchStatus)status
 {

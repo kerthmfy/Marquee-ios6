@@ -459,6 +459,58 @@ static void MRRunNotFoundIsPermanent(void) {
     [context teardown];
 }
 
+static void MRRunClientRejectedIsPermanent(void) {
+    MRMediaItem *movie = MRWriteItem(MRMediaTypeMovie, 55, @"Arrival",
+                                     MRWatchStatusNone);
+    MRWriteTestContext *context = [MRWriteTestContext contextWithItems:@[ movie ]];
+    MROutboxEntry *entry =
+        [MROutboxEntry statusEntryWithItem:movie
+                                   status:MRWatchStatusPlanToWatch
+                           previousStatus:MRWatchStatusNone];
+    MRWriteEnqueue(context, @[ entry ]);
+    [context.http enqueueResponse:MRWriteResponse(412, @{ @"error": @"invalid" })];
+
+    MRWriteResult *result = MRWriteSend(context, @[ entry ]);
+    MRAssertTrue(result != nil, @"client rejection completes");
+    MRAssertEqualIntegers(1, (NSInteger)result.permanentlyFailedEntries.count,
+                          @"client rejection is permanent");
+    MRAssertEqualIntegers(0, (NSInteger)result.succeededEntries.count,
+                          @"client rejection is not a success");
+    MRAssertEqualIntegers(MRErrorKindClientRejected,
+                          [MRError kindForError:result.error],
+                          @"the result carries the client rejection");
+    MRAssertEqualIntegers(0, (NSInteger)context.outbox.entries.count,
+                          @"client rejection drops the outbox entry");
+    MRAssertEqualIntegers(1, (NSInteger)context.http.requestCount,
+                          @"client rejection is not retried");
+    [context.clock advanceBy:20.0];
+    MRAssertEqualIntegers(1, (NSInteger)context.http.requestCount,
+                          @"client rejection schedules no later retry");
+    [context teardown];
+}
+
+static void MRRunValidationRejectionIsPermanent(void) {
+    MRMediaItem *movie = MRWriteItem(MRMediaTypeMovie, 56, @"Moon",
+                                     MRWatchStatusNone);
+    MRWriteTestContext *context = [MRWriteTestContext contextWithItems:@[ movie ]];
+    MROutboxEntry *entry =
+        [MROutboxEntry statusEntryWithItem:movie
+                                   status:MRWatchStatusPlanToWatch
+                           previousStatus:MRWatchStatusNone];
+    MRWriteEnqueue(context, @[ entry ]);
+    [context.http enqueueResponse:MRWriteResponse(400, @{ @"error": @"invalid" })];
+
+    MRWriteResult *result = MRWriteSend(context, @[ entry ]);
+    MRAssertTrue(result != nil, @"validation rejection completes");
+    MRAssertEqualIntegers(1, (NSInteger)result.permanentlyFailedEntries.count,
+                          @"unrecognized validation is permanent");
+    MRAssertEqualIntegers(0, (NSInteger)context.outbox.entries.count,
+                          @"validation rejection drops the outbox entry");
+    MRAssertEqualIntegers(1, (NSInteger)context.http.requestCount,
+                          @"validation rejection is not retried");
+    [context teardown];
+}
+
 static void MRRunServerRetryStaysQueued(void) {
     MRMediaItem *show = MRWriteItem(MRMediaTypeShow, 123, @"The Bear",
                                     MRWatchStatusPlanToWatch);
@@ -597,6 +649,8 @@ void MRRunWriteServiceTests(void) {
     MRRunRatingRemovalBody();
     MRRunRemoveBodyAndStore();
     MRRunNotFoundIsPermanent();
+    MRRunClientRejectedIsPermanent();
+    MRRunValidationRejectionIsPermanent();
     MRRunServerRetryStaysQueued();
     MRRunBurstRetryPolicy();
     MRRunWriteLockedRetryPolicy();

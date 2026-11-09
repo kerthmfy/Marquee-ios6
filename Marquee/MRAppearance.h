@@ -28,6 +28,11 @@
 + (UIColor *)holdColor;
 + (UIColor *)droppedColor;
 + (UIColor *)statusColorForWatchStatus:(MRWatchStatus)status;
++ (UIColor *)bannerNeutralColor;
++ (UIColor *)bannerPendingColor;
++ (UIColor *)bannerWarningColor;
++ (UIColor *)bannerErrorColor;
++ (UIColor *)toastColor;
 
 // System type, no custom fonts
 + (UIFont *)titleFont;       // bold 16, screen titles

@@ -132,6 +132,20 @@ static void MRWriteCollectResolvedStatuses(id object,
     }
 }
 
+static BOOL MRWriteIsPermanentRejection(MRErrorKind kind, NSError *error) {
+    if (kind == MRErrorKindNotFound || kind == MRErrorKindClientRejected) {
+        return YES;
+    }
+    if (kind == MRErrorKindUnknown) {
+        // Unrecognized 400/409/422 responses are validation failures. Retrying
+        // the same body cannot succeed and would block the head of the queue.
+        NSNumber *statusCode = [error.userInfo objectForKey:MRErrorStatusCodeKey];
+        NSInteger code = statusCode != nil ? [statusCode integerValue] : 0;
+        return code == 400 || code == 409 || code == 422;
+    }
+    return NO;
+}
+
 #pragma mark - Service
 
 @interface MRWriteService ()
@@ -335,7 +349,9 @@ static void MRWriteCollectResolvedStatuses(id object,
                      completion:(void (^)(MRWriteResult *result))completion {
     MRErrorKind kind = [MRError kindForError:error];
 
-    if (kind == MRErrorKindNotFound) {
+    if (MRWriteIsPermanentRejection(kind, error)) {
+        // A rejected request cannot succeed on retry. Drop the entries so the
+        // queue can keep moving and report them as permanent.
         [self.outbox removeEntries:entries error:NULL];
         MRWriteResult *result = [self emptyResult];
         result.permanentlyFailedEntries = entries;
