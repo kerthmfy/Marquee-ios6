@@ -12,6 +12,8 @@ clang -fobjc-arc -framework Foundation -framework CoreGraphics -I Marquee \
   Marquee/MROutboxEntry.m Marquee/MROutbox.m Marquee/MRWriteResult.m \
   Marquee/MRWriteService.m Marquee/MRDetailActions.m \
   Marquee/MRFeedSection.m Marquee/MRPublicFeedBuilder.m \
+  Marquee/MRGenreChoice.m Marquee/MRHiddenTitle.m \
+  Marquee/MRPreferencesStore.m Marquee/MRTasteProfile.m \
   Marquee/MRTokenSession.m Marquee/MRDeviceCode.m \
   Marquee/MRDeviceFlow.m Marquee/MRSimklAuth.m \
   tests/*.m -o /tmp/marquee-tests

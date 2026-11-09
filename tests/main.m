@@ -27,6 +27,8 @@ void MRRunRelatedItemTests(void);
 void MRRunOutboxTests(void);
 void MRRunWriteServiceTests(void);
 void MRRunWriteReconciliationTests(void);
+void MRRunPreferencesStoreTests(void);
+void MRRunTasteProfileTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -92,6 +94,12 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"write reconciliation");
         MRRunWriteReconciliationTests();
+
+        MRTestBeginSuite(@"preferences store");
+        MRRunPreferencesStoreTests();
+
+        MRTestBeginSuite(@"taste profile");
+        MRRunTasteProfileTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {
