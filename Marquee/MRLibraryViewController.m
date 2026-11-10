@@ -7,6 +7,7 @@
 
 #import "MRAppEnvironment.h"
 #import "MRAppearance.h"
+#import "MRBannerView.h"
 #import "MRConnectViewController.h"
 #import "MRDetailViewController.h"
 #import "MRError.h"
@@ -17,6 +18,7 @@
 #import "MRMediaItem.h"
 #import "MRPlaceholderView.h"
 #import "MRPosterImageView.h"
+#import "MRQuotaTracker.h"
 #import "MRSimklAuth.h"
 #import "MRStatusChipsView.h"
 #import "MRStatusPillView.h"
@@ -314,6 +316,7 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
 @property (nonatomic, strong) UILabel *footerLabel;
 @property (nonatomic, strong) UIView *syncTitleView;
 @property (nonatomic, strong) UIActivityIndicatorView *syncSpinner;
+@property (nonatomic, strong) MRBannerView *quotaBannerView;
 
 @property (nonatomic, assign) MRMediaType selectedType;
 @property (nonatomic, assign) MRWatchStatus selectedStatus;
@@ -432,6 +435,9 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     [tableView addSubview:refresh];
     self.refreshControl = refresh;
 
+    MRBannerView *quotaBanner = [[MRBannerView alloc] initWithFrame:CGRectZero];
+    self.quotaBannerView = quotaBanner;
+
     UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 320.0, 44.0)];
     footer.backgroundColor = [UIColor clearColor];
     UILabel *footerLabel = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -457,7 +463,12 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
                selector:@selector(syncStatusDidChange:)
                    name:MRSyncStatusDidChangeNotification
                  object:nil];
+    [center addObserver:self
+               selector:@selector(quotaDidChange:)
+                   name:MRQuotaDidChangeNotification
+                 object:nil];
 
+    [self updateQuotaBanner];
     [self reloadFromStore];
 }
 
@@ -472,6 +483,7 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
 
     [self layoutContentWidth:width height:height];
     [self layoutFooter];
+    [self layoutQuotaBanner];
 }
 
 - (void)dealloc {
@@ -511,6 +523,57 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     self.footerView.frame = CGRectMake(0.0, 0.0, width, 44.0);
     self.footerLabel.frame = CGRectMake((width - maxContent) / 2.0 + inset, 12.0,
                                         MAX(0.0, maxContent - inset * 2.0), 20.0);
+}
+
+- (NSString *)quotaLimitMessage {
+    MRQuotaTracker *quota = self.environment.quotaTracker;
+    if (quota == nil || quota.remaining != 0) {
+        return nil;
+    }
+
+    NSString *message = @"Daily limit reached";
+    if (quota.limit >= 0) {
+        message = [message stringByAppendingFormat:@" · 0 of %ld left", (long)quota.limit];
+    }
+    if (quota.resetAt != nil) {
+        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+        [formatter setDateStyle:NSDateFormatterNoStyle];
+        [formatter setTimeStyle:NSDateFormatterShortStyle];
+        message = [message stringByAppendingFormat:@" · resets %@",
+                   [formatter stringFromDate:quota.resetAt]];
+    }
+    return message;
+}
+
+- (void)quotaDidChange:(NSNotification *)notification {
+    [self updateQuotaBanner];
+}
+
+- (void)updateQuotaBanner {
+    NSString *message = [self quotaLimitMessage];
+    if (message.length == 0) {
+        [self.quotaBannerView hide];
+        if (self.tableView.tableHeaderView == self.quotaBannerView) {
+            self.tableView.tableHeaderView = nil;
+        }
+        return;
+    }
+
+    [self.quotaBannerView showMessage:message
+                               style:MRBannerStyleError
+                          retryTitle:nil];
+    [self layoutQuotaBanner];
+    self.tableView.tableHeaderView = self.quotaBannerView;
+}
+
+- (void)layoutQuotaBanner {
+    if (self.tableView.tableHeaderView != self.quotaBannerView) {
+        return;
+    }
+    CGFloat width = CGRectGetWidth(self.tableView.bounds);
+    self.quotaBannerView.frame = CGRectMake(0.0, 0.0, width,
+                                            [MRBannerView height]);
+    self.tableView.tableHeaderView = self.quotaBannerView;
 }
 
 #pragma mark - Store and filters

@@ -304,4 +304,16 @@ static NSString *MRResponseCacheFileNameForURL(NSString *URL) {
     }
 }
 
+- (unsigned long long)diskUsageBytes {
+    NSArray *names = [self cacheFileNames];
+    NSFileManager *manager = [NSFileManager defaultManager];
+    unsigned long long total = 0;
+    for (NSString *name in names) {
+        NSString *path = [self.directory stringByAppendingPathComponent:name];
+        NSDictionary *attributes = [manager attributesOfItemAtPath:path error:NULL];
+        total += [[attributes objectForKey:NSFileSize] unsignedLongLongValue];
+    }
+    return total;
+}
+
 @end

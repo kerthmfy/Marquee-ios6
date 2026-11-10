@@ -138,6 +138,19 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
     });
 }
 
+- (void)forceFullSyncWithCompletion:(void (^)(NSError *error))completion {
+    MRSyncDeliverOnMain(^{
+        if (self.isSyncing) {
+            [self cancel];
+        }
+        // library.json and state.json are rebuilt from the network. Pending
+        // writes live in outbox.json and are deliberately left alone.
+        [self.storage removeFileNamed:@"library" error:NULL];
+        [self.storage removeFileNamed:@"state" error:NULL];
+        [self syncWithCompletion:completion];
+    });
+}
+
 #pragma mark - Phase 1
 
 - (void)fetchActivities {

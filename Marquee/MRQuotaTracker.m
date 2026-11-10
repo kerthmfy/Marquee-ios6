@@ -71,12 +71,21 @@ static BOOL MRQuotaParseSeconds(NSString *string, NSTimeInterval *outValue) {
     return YES;
 }
 
+static NSString *MRQuotaDayString(void) {
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    [formatter setDateFormat:@"yyyy-MM-dd"];
+    [formatter setLocale:[[NSLocale alloc] initWithLocaleIdentifier:@"en_US_POSIX"]];
+    return [formatter stringFromDate:[NSDate date]];
+}
+
 @interface MRQuotaTracker ()
 @property (nonatomic, copy) NSString *directory;
 @property (nonatomic, assign) NSInteger accountID;
 @property (nonatomic, assign) NSInteger limit;
 @property (nonatomic, assign) NSInteger remaining;
 @property (nonatomic, strong) NSDate *resetAt;
+@property (nonatomic, assign) NSInteger requestsToday;
+@property (nonatomic, copy) NSString *requestDay;
 @end
 
 @implementation MRQuotaTracker
@@ -136,6 +145,20 @@ static BOOL MRQuotaParseSeconds(NSString *string, NSTimeInterval *outValue) {
     if ([resetValue isKindOfClass:[NSString class]]) {
         self.resetAt = [MRDate dateFromISOString:(NSString *)resetValue];
     }
+
+    NSString *today = MRQuotaDayString();
+    id storedDay = [stored objectForKey:@"requestDay"];
+    id storedRequests = [stored objectForKey:@"requestsToday"];
+    if ([storedDay isKindOfClass:[NSString class]] &&
+        [(NSString *)storedDay isEqualToString:today] &&
+        [storedRequests isKindOfClass:[NSNumber class]] &&
+        [storedRequests integerValue] >= 0) {
+        self.requestDay = storedDay;
+        self.requestsToday = [storedRequests integerValue];
+    } else {
+        self.requestDay = today;
+        self.requestsToday = 0;
+    }
 }
 
 - (void)save {
@@ -158,6 +181,10 @@ static BOOL MRQuotaParseSeconds(NSString *string, NSTimeInterval *outValue) {
     [stored setObject:@(self.accountID) forKey:@"accountID"];
     [stored setObject:@(self.limit) forKey:@"limit"];
     [stored setObject:@(self.remaining) forKey:@"remaining"];
+    [stored setObject:@(self.requestsToday) forKey:@"requestsToday"];
+    if (self.requestDay.length > 0) {
+        [stored setObject:self.requestDay forKey:@"requestDay"];
+    }
     if (self.resetAt != nil) {
         NSString *resetString = [MRDate isoStringFromDate:self.resetAt];
         if (resetString.length > 0) {
@@ -181,6 +208,18 @@ static BOOL MRQuotaParseSeconds(NSString *string, NSTimeInterval *outValue) {
         [[NSNotificationCenter defaultCenter] postNotificationName:MRQuotaDidChangeNotification
                                                             object:self];
     });
+}
+
+- (void)recordRequest {
+    @synchronized(self) {
+        NSString *today = MRQuotaDayString();
+        if (![self.requestDay isEqualToString:today]) {
+            self.requestDay = today;
+            self.requestsToday = 0;
+        }
+        self.requestsToday += 1;
+        [self save];
+    }
 }
 
 - (void)updateFromHeaders:(NSDictionary *)headers {

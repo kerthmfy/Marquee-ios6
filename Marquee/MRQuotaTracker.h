@@ -16,9 +16,16 @@ extern NSString *const MRQuotaDidChangeNotification;
 
 @property (nonatomic, readonly) NSInteger limit;
 @property (nonatomic, readonly) NSInteger remaining;
-@property (nonatomic, readonly) NSDate *resetAt;
+@property (nonatomic, strong, readonly) NSDate *resetAt;
+
+// The app's own network request count for the current local calendar day. It is
+// persisted per account and resets when the day changes.
+@property (nonatomic, readonly) NSInteger requestsToday;
 
 - (instancetype)initWithDirectory:(NSString *)directory accountID:(NSInteger)accountID;
+
+// Counts one outbound API request. Cached responses do not count.
+- (void)recordRequest;
 
 // Reads X-RateLimit-Limit and X-RateLimit-Remaining case-insensitively. A
 // numeric Retry-After is treated as seconds from now. Missing or malformed

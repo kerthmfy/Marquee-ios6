@@ -19,6 +19,9 @@
 // Newest records first.
 - (NSArray *)records;
 
+// Newest records first, capped at limit.
+- (NSArray *)recentRecords:(NSUInteger)limit;
+
 - (void)recordError:(NSError *)error
             request:(MRHTTPRequest *)request
            response:(MRHTTPResponse *)response;

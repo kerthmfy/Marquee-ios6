@@ -9,6 +9,7 @@
 #import "MRAppEnvironment.h"
 #import "MRAppearance.h"
 #import "MRConnectViewController.h"
+#import "MRDiagnosticsViewController.h"
 #import "MRGenrePickerViewController.h"
 #import "MRHiddenTitlesViewController.h"
 #import "MRImageCache.h"
@@ -992,7 +993,7 @@ static NSString *MRProfileVersionText(void) {
         case MRProfileSectionForYou:
             return 3;
         case MRProfileSectionAbout:
-            return 3;
+            return 4;
     }
     return 0;
 }
@@ -1094,11 +1095,16 @@ static NSString *MRProfileVersionText(void) {
                              detail:@"Simkl"
                         destructive:NO
                            showsMore:NO];
-        } else {
+        } else if (indexPath.row == 2) {
             [cell configureWithTitle:@"Version"
                              detail:MRProfileVersionText()
                         destructive:NO
                            showsMore:NO];
+        } else {
+            [cell configureWithTitle:@"Diagnostics"
+                             detail:nil
+                        destructive:NO
+                           showsMore:YES];
         }
         return cell;
     }
@@ -1191,6 +1197,10 @@ static NSString *MRProfileVersionText(void) {
             [self openURLString:MRProfileConnectedAppsURL];
         } else if (indexPath.row == 1) {
             [self openURLString:@"https://simkl.com"];
+        } else if (indexPath.row == 3) {
+            MRDiagnosticsViewController *diagnostics =
+                [[MRDiagnosticsViewController alloc] initWithEnvironment:self.environment];
+            [self.navigationController pushViewController:diagnostics animated:YES];
         }
     } else if (kind == MRProfileSectionSignOut) {
         [self confirmSignOut];

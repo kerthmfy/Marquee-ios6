@@ -33,6 +33,7 @@ void MRRunRecommendationCandidateTests(void);
 void MRRunRecommendationRowsTests(void);
 void MRRunGenrePickerTests(void);
 void MRRunProfileStatsTests(void);
+void MRRunDiagnosticsReportTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -116,6 +117,9 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"profile stats");
         MRRunProfileStatsTests();
+
+        MRTestBeginSuite(@"diagnostics report");
+        MRRunDiagnosticsReportTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {

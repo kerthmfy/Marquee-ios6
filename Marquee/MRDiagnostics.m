@@ -209,6 +209,16 @@ static NSDictionary *MRDiagnosticsSanitizedRecord(NSDictionary *raw) {
     }
 }
 
+- (NSArray *)recentRecords:(NSUInteger)limit {
+    @synchronized(self) {
+        if (limit == 0) {
+            return @[];
+        }
+        NSUInteger count = MIN(limit, self.mutableRecords.count);
+        return [self.mutableRecords subarrayWithRange:NSMakeRange(0, count)];
+    }
+}
+
 - (void)recordError:(NSError *)error
             request:(MRHTTPRequest *)request
            response:(MRHTTPResponse *)response {

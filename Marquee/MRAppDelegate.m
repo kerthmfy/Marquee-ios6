@@ -98,6 +98,9 @@
     environment.apiClient = client;
     environment.imageCache = [[MRImageCache alloc] init];
     environment.auth = auth;
+    environment.diagnostics = self.diagnostics;
+    environment.quotaTracker = quota;
+    environment.responseCache = self.responseCache;
     return environment;
 }
 
@@ -105,6 +108,7 @@
 {
     MRQuotaTracker *quota = [[MRQuotaTracker alloc] initWithDirectory:self.quotaDirectory
                                                             accountID:accountID];
+    self.environment.quotaTracker = quota;
     return [[MRAPIClient alloc] initWithHTTPClient:[MRAPIRequestOperation sharedClient]
                                      tokenProvider:self.environment.auth
                                      responseCache:self.responseCache

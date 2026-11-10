@@ -50,4 +50,9 @@ extern NSString *const MRSyncStatusDidChangeNotification;
 - (void)syncWithCompletion:(void (^)(NSError *error))completion;
 - (void)cancel;
 
+// Wipes the saved snapshot and runs phase 1 again. The outbox is never touched.
+// An in-flight sync is cancelled first; its waiters receive Cancelled while this
+// request receives the new sync's result.
+- (void)forceFullSyncWithCompletion:(void (^)(NSError *error))completion;
+
 @end

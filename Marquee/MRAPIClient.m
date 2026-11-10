@@ -142,6 +142,9 @@ static void MRDeliverOnMain(void (^block)(void)) {
     }
 
     MRHTTPRequest *request = self.request;
+    if (client.quotaTracker != nil) {
+        [client.quotaTracker recordRequest];
+    }
     id<MRHTTPTask> task = [client.httpClient sendRequest:request
                                               completion:^(MRHTTPResponse *response) {
         [self handleResponse:response];

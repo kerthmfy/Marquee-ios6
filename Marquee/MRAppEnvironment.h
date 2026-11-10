@@ -6,9 +6,12 @@
 #import <Foundation/Foundation.h>
 
 @class MRAPIClient;
+@class MRDiagnostics;
 @class MRImageCache;
 @class MRPreferencesStore;
+@class MRQuotaTracker;
 @class MRRecommendationEngine;
+@class MRResponseCache;
 @class MRSimklAuth;
 @class MRStorage;
 @class MRLibraryStore;
@@ -26,6 +29,9 @@
 @property (nonatomic, strong) MRAPIClient *apiClient;
 @property (nonatomic, strong) MRImageCache *imageCache;
 @property (nonatomic, strong) MRSimklAuth *auth;
+@property (nonatomic, strong) MRDiagnostics *diagnostics;
+@property (nonatomic, strong) MRQuotaTracker *quotaTracker;
+@property (nonatomic, strong) MRResponseCache *responseCache;
 @property (nonatomic, strong) MRStorage *storage;
 @property (nonatomic, strong) MRLibraryStore *libraryStore;
 @property (nonatomic, strong) MRSyncEngine *syncEngine;

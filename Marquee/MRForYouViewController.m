@@ -27,6 +27,7 @@
 #import "MRPosterCardView.h"
 #import "MRPreferencesStore.h"
 #import "MRPublicFeedBuilder.h"
+#import "MRQuotaTracker.h"
 #import "MRRecommendationDataProviding.h"
 #import "MRRecommendationEngine.h"
 #import "MRRowHeaderView.h"
@@ -468,6 +469,7 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 @property (nonatomic, strong) MRForYouSkeletonView *skeletonView;
 @property (nonatomic, strong) MRPlaceholderView *retryView;
 @property (nonatomic, strong) MRBannerView *bannerView;
+@property (nonatomic, copy) NSString *refreshBannerMessage;
 @property (nonatomic, assign) CGFloat lastLayoutWidth;
 @property (nonatomic, assign) BOOL observedWasSyncing;
 @property (nonatomic, copy) NSString *preferencesSignature;
@@ -698,6 +700,10 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
                selector:@selector(applicationDidBecomeActive:)
                    name:UIApplicationDidBecomeActiveNotification
                  object:nil];
+    [center addObserver:self
+               selector:@selector(quotaDidChange:)
+                   name:MRQuotaDidChangeNotification
+                 object:nil];
 
     MRSyncEngine *engine = self.environment.syncEngine;
     self.observedWasSyncing = engine.isSyncing;
@@ -753,6 +759,10 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
     if (self.isSignedIn) {
         [self refreshFeedForce:YES];
     }
+}
+
+- (void)quotaDidChange:(NSNotification *)notification {
+    [self updateBannerDisplay];
 }
 
 - (void)updatePreferencesSignature {
@@ -893,6 +903,7 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 
     self.tableView.hidden = NO;
     [self.tableView reloadData];
+    [self updateBannerDisplay];
 }
 
 - (NSArray *)visibleSectionsFromSections:(NSArray *)sections
@@ -984,25 +995,55 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
     [self layoutRetryView];
 }
 
+- (NSString *)quotaLimitMessage {
+    MRQuotaTracker *quota = self.environment.quotaTracker;
+    if (quota == nil || quota.remaining != 0) {
+        return nil;
+    }
+
+    NSString *message = @"Daily limit reached";
+    if (quota.limit >= 0) {
+        message = [message stringByAppendingFormat:@" · 0 of %ld left", (long)quota.limit];
+    }
+    if (quota.resetAt != nil) {
+        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+        [formatter setDateStyle:NSDateFormatterNoStyle];
+        [formatter setTimeStyle:NSDateFormatterShortStyle];
+        message = [message stringByAppendingFormat:@" · resets %@",
+                   [formatter stringFromDate:quota.resetAt]];
+    }
+    return message;
+}
+
 - (void)showRefreshBannerWithMessage:(NSString *)message {
-    if (self.sections.count == 0) {
+    self.refreshBannerMessage = message;
+    [self updateBannerDisplay];
+}
+
+- (void)hideRefreshBanner {
+    self.refreshBannerMessage = nil;
+    [self updateBannerDisplay];
+}
+
+- (void)updateBannerDisplay {
+    NSString *quotaMessage = [self quotaLimitMessage];
+    NSString *message = quotaMessage != nil ? quotaMessage : self.refreshBannerMessage;
+    if (message.length == 0 || self.sections.count == 0) {
+        [self.bannerView hide];
+        if (self.tableView.tableHeaderView == self.bannerView) {
+            self.tableView.tableHeaderView = nil;
+        }
         return;
     }
 
     [self.bannerView showMessage:message
-                          style:MRBannerStyleWarning
-                     retryTitle:@"Retry"];
+                          style:quotaMessage != nil ? MRBannerStyleError
+                                                    : MRBannerStyleWarning
+                     retryTitle:quotaMessage != nil ? nil : @"Retry"];
     self.bannerView.frame = CGRectMake(0.0, 0.0,
                                        CGRectGetWidth(self.tableView.bounds),
                                        [MRBannerView height]);
     self.tableView.tableHeaderView = self.bannerView;
-}
-
-- (void)hideRefreshBanner {
-    [self.bannerView hide];
-    if (self.tableView.tableHeaderView == self.bannerView) {
-        self.tableView.tableHeaderView = nil;
-    }
 }
 
 - (void)refreshPulled:(UIRefreshControl *)sender {
