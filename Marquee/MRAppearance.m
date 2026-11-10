@@ -446,6 +446,8 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 + (UIColor *)bannerWarningColor { return MRColor(191, 128, 24); }
 + (UIColor *)bannerErrorColor   { return MRColor(176, 46, 36); }
 + (UIColor *)toastColor         { return MRColor(34, 36, 40); }
++ (UIColor *)progressTrackColor { return [UIColor colorWithWhite:0.0 alpha:0.42]; }
++ (UIColor *)progressFillColor  { return MRColor(45, 125, 210); }
 
 + (UIColor *)statusColorForWatchStatus:(MRWatchStatus)status
 {

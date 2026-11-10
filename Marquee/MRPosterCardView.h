@@ -15,9 +15,14 @@
 
 - (instancetype)initWithImageCache:(MRImageCache *)imageCache;
 - (void)setItem:(MRMediaItem *)item;
+// Overrides the one-line metadata label (for Continue Watching progress).
+- (void)setMetaText:(NSString *)metaText;
+// 0 hides the progress bar; values in (0, 1] draw it across the poster.
+- (void)setProgress:(CGFloat)progress;
 - (void)cancelLoading;
 
 // Called when the card is tapped. Task 11 uses this for detail navigation.
 @property (nonatomic, copy) void (^tapHandler)(MRMediaItem *item);
+@property (nonatomic, copy) void (^longPressHandler)(MRMediaItem *item);
 
 @end

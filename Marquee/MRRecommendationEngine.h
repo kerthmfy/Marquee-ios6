@@ -38,6 +38,9 @@
 
 @interface MRRecommendationEngine : NSObject
 
+// The public Simkl reads shared with the genre picker.
+@property (nonatomic, strong, readonly) id<MRRecommendationDataProviding> dataProvider;
+
 - (instancetype)initWithDataProvider:(id<MRRecommendationDataProviding>)provider
                         libraryStore:(MRLibraryStore *)libraryStore
                          preferences:(MRPreferencesStore *)preferences

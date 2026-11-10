@@ -959,7 +959,8 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
                                         libraryStore:self.libraryStore
                                           imageCache:self.imageCache
                                               outbox:self.environment.outbox
-                                        writeService:self.environment.writeService];
+                                        writeService:self.environment.writeService
+                                         preferences:self.environment.preferences];
     [self.navigationController pushViewController:detail animated:YES];
 }
 

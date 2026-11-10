@@ -37,6 +37,10 @@ typedef NS_ENUM(NSInteger, MRPreferencesStoreErrorCode) {
 
 - (BOOL)addManualGenre:(MRGenreChoice *)choice error:(NSError **)error;
 - (BOOL)removeManualGenre:(MRGenreChoice *)choice error:(NSError **)error;
+// Atomically replaces the picker's selections. The array is deduplicated; more
+// than five choices returns MRPreferencesStoreErrorManualGenreLimit and leaves
+// the previous selections untouched.
+- (BOOL)setManualGenres:(NSArray *)choices error:(NSError **)error;
 - (BOOL)hasManualGenre:(MRGenreChoice *)choice;
 
 - (BOOL)isHiddenType:(MRMediaType)type simklID:(NSInteger)simklID;

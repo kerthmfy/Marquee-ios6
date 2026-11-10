@@ -21,6 +21,7 @@
 #import "MRPlaceholderView.h"
 #import "MRPosterCardView.h"
 #import "MRPosterImageView.h"
+#import "MRPreferencesStore.h"
 #import "MRStarRatingView.h"
 #import "MRStatusPillView.h"
 #import "MRToastView.h"
@@ -577,6 +578,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 @property (nonatomic, strong) MRImageCache *imageCache;
 @property (nonatomic, strong) MROutbox *outbox;
 @property (nonatomic, strong) MRWriteService *writeService;
+@property (nonatomic, strong) MRPreferencesStore *preferences;
 @property (nonatomic, strong) MRDetailActions *actions;
 
 @property (nonatomic, strong) UIScrollView *scrollView;
@@ -588,6 +590,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 @property (nonatomic, strong) UIButton *removeRatingButton;
 @property (nonatomic, strong) MRDetailActionRowView *statusRow;
 @property (nonatomic, strong) MRDetailActionRowView *removeRow;
+@property (nonatomic, strong) MRDetailActionRowView *notInterestedRow;
 @property (nonatomic, strong) MRBannerView *bannerView;
 @property (nonatomic, copy) NSArray *statusChoices;
 @property (nonatomic, assign) BOOL ratingExpanded;
@@ -631,7 +634,8 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
                 libraryStore:(MRLibraryStore *)libraryStore
                   imageCache:(MRImageCache *)imageCache
                       outbox:(MROutbox *)outbox
-                writeService:(MRWriteService *)writeService {
+                writeService:(MRWriteService *)writeService
+                 preferences:(MRPreferencesStore *)preferences {
     self = [super init];
     if (self) {
         _item = [item copy];
@@ -640,6 +644,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
         _imageCache = imageCache;
         _outbox = outbox;
         _writeService = writeService;
+        _preferences = preferences;
         if (libraryStore != nil && writeService != nil) {
             _actions = [[MRDetailActions alloc] initWithLibraryStore:libraryStore
                                                               outbox:outbox
@@ -655,13 +660,29 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 - (instancetype)initWithItem:(MRMediaItem *)item
                    apiClient:(MRAPIClient *)apiClient
                 libraryStore:(MRLibraryStore *)libraryStore
+                  imageCache:(MRImageCache *)imageCache
+                      outbox:(MROutbox *)outbox
+                writeService:(MRWriteService *)writeService {
+    return [self initWithItem:item
+                    apiClient:apiClient
+                 libraryStore:libraryStore
+                   imageCache:imageCache
+                       outbox:outbox
+                 writeService:writeService
+                  preferences:nil];
+}
+
+- (instancetype)initWithItem:(MRMediaItem *)item
+                   apiClient:(MRAPIClient *)apiClient
+                libraryStore:(MRLibraryStore *)libraryStore
                   imageCache:(MRImageCache *)imageCache {
     return [self initWithItem:item
                     apiClient:apiClient
                  libraryStore:libraryStore
                    imageCache:imageCache
                        outbox:nil
-                 writeService:nil];
+                 writeService:nil
+                  preferences:nil];
 }
 
 - (id)init {
@@ -670,7 +691,8 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
                  libraryStore:nil
                    imageCache:nil
                        outbox:nil
-                 writeService:nil];
+                 writeService:nil
+                  preferences:nil];
 }
 
 - (void)viewDidLoad {
@@ -945,6 +967,18 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
         forControlEvents:UIControlEventTouchUpInside];
     [card addSubview:removeRow];
     self.removeRow = removeRow;
+
+    MRDetailActionRowView *notInterestedRow =
+        [[MRDetailActionRowView alloc] initWithFrame:CGRectZero];
+    [notInterestedRow configureWithTitle:@"Not Interested"
+                                   value:@"Hide from For You"
+                             destructive:NO];
+    notInterestedRow.showsChevron = NO;
+    [notInterestedRow addTarget:self
+                         action:@selector(notInterestedTapped:)
+               forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:notInterestedRow];
+    self.notInterestedRow = notInterestedRow;
 }
 
 - (void)buildBanner {
@@ -1040,6 +1074,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
                            destructive:NO];
     self.statusRow.hidden = !tracked;
     self.removeRow.hidden = !tracked;
+    self.notInterestedRow.hidden = self.preferences == nil || item.simklID <= 0;
 
     self.ratingView.hidden = !self.ratingExpanded;
     self.removeRatingButton.hidden = !self.ratingExpanded;
@@ -1227,6 +1262,34 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
 - (void)removeTapped:(id)sender {
     [self showRemoveSheet];
+}
+
+- (void)notInterestedTapped:(id)sender {
+    if (self.preferences == nil || self.item == nil) {
+        return;
+    }
+
+    NSError *error = nil;
+    if (![self.preferences hideTitle:self.item error:&error]) {
+        NSString *message = @"This title couldn't be hidden.";
+        if ([error.domain isEqualToString:MRPreferencesStoreErrorDomain] &&
+            error.code == MRPreferencesStoreErrorHiddenTitleLimit) {
+            message = @"You can hide up to 200 titles.";
+        }
+        [self showAlertWithTitle:@"Couldn't Hide" message:message];
+        return;
+    }
+
+    [MRToastView showMessage:@"Hidden from For You" inView:self.view];
+    __weak MRDetailViewController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                 (int64_t)(0.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        MRDetailViewController *strongSelf = weakSelf;
+        if (strongSelf.navigationController != nil) {
+            [strongSelf.navigationController popViewControllerAnimated:YES];
+        }
+    });
 }
 
 - (void)showStatusSheet {
@@ -1577,6 +1640,9 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     if (self.item.watchStatus != MRWatchStatusNone) {
         height += rowHeight * 2.0;
     }
+    if (self.preferences != nil && self.item.simklID > 0) {
+        height += rowHeight;
+    }
     height += 8.0;
     return height;
 }
@@ -1611,6 +1677,11 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
         self.statusRow.frame = CGRectMake(0.0, y, width, rowHeight);
         y += rowHeight;
         self.removeRow.frame = CGRectMake(0.0, y, width, rowHeight);
+        y += rowHeight;
+    }
+
+    if (!self.notInterestedRow.hidden) {
+        self.notInterestedRow.frame = CGRectMake(0.0, y, width, rowHeight);
     }
 }
 

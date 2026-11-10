@@ -9,7 +9,9 @@
 #import "MRKeychainTokenStore.h"
 #import "MRLibraryStore.h"
 #import "MROutbox.h"
+#import "MRPreferencesStore.h"
 #import "MRQuotaTracker.h"
+#import "MRRecommendationEngine.h"
 #import "MRResponseCache.h"
 #import "MRRootTabBarController.h"
 #import "MRSimklAuth.h"
@@ -181,6 +183,17 @@
     NSError *loadError = nil;
     BOOL loaded = [store load:&loadError];
     self.environment.libraryStore = store;
+
+    MRPreferencesStore *preferences = [[MRPreferencesStore alloc] initWithStorage:storage];
+    [preferences load:NULL];
+    self.environment.preferences = preferences;
+    self.environment.recommendationEngine =
+        [[MRRecommendationEngine alloc] initWithDataProvider:self.environment.apiClient
+                                               libraryStore:store
+                                                preferences:preferences
+                                                     storage:storage
+                                              responseCache:self.responseCache
+                                                      clock:self.clock];
 
     MRSyncEngine *engine = [[MRSyncEngine alloc] initWithDataProvider:self.environment.apiClient
                                                          libraryStore:store

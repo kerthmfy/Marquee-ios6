@@ -208,6 +208,43 @@ static const NSUInteger MRPreferencesMaximumSearchHistory = 8;
     return YES;
 }
 
+- (BOOL)setManualGenres:(NSArray *)choices error:(NSError **)error {
+    if (![choices isKindOfClass:[NSArray class]]) {
+        if (error != NULL) {
+            *error = [self errorWithCode:MRPreferencesStoreErrorInvalidFile];
+        }
+        return NO;
+    }
+
+    NSMutableArray *validated = [NSMutableArray array];
+    for (id entry in (NSArray *)choices) {
+        if (![entry isKindOfClass:[MRGenreChoice class]]) {
+            if (error != NULL) {
+                *error = [self errorWithCode:MRPreferencesStoreErrorInvalidFile];
+            }
+            return NO;
+        }
+        if (![validated containsObject:entry]) {
+            [validated addObject:entry];
+        }
+    }
+    if (validated.count > MRPreferencesMaximumManualGenres) {
+        if (error != NULL) {
+            *error = [self errorWithCode:MRPreferencesStoreErrorManualGenreLimit];
+        }
+        return NO;
+    }
+
+    NSArray *previous = [self.mutableGenres copy];
+    [self.mutableGenres setArray:validated];
+    if (![self save:error]) {
+        [self.mutableGenres setArray:previous];
+        return NO;
+    }
+    [self postChange];
+    return YES;
+}
+
 - (BOOL)isHiddenType:(MRMediaType)type simklID:(NSInteger)simklID {
     for (MRHiddenTitle *item in self.mutableHidden) {
         if ([item matchesType:type simklID:simklID]) {

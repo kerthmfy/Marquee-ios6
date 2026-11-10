@@ -7,6 +7,8 @@
 
 @class MRAPIClient;
 @class MRImageCache;
+@class MRPreferencesStore;
+@class MRRecommendationEngine;
 @class MRSimklAuth;
 @class MRStorage;
 @class MRLibraryStore;
@@ -29,6 +31,8 @@
 @property (nonatomic, strong) MRSyncEngine *syncEngine;
 @property (nonatomic, strong) MROutbox *outbox;
 @property (nonatomic, strong) MRWriteService *writeService;
+@property (nonatomic, strong) MRPreferencesStore *preferences;
+@property (nonatomic, strong) MRRecommendationEngine *recommendationEngine;
 @property (nonatomic, assign) NSInteger accountID;
 
 @end

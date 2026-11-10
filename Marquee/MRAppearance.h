@@ -33,6 +33,8 @@
 + (UIColor *)bannerWarningColor;
 + (UIColor *)bannerErrorColor;
 + (UIColor *)toastColor;
++ (UIColor *)progressTrackColor;
++ (UIColor *)progressFillColor;
 
 // System type, no custom fonts
 + (UIFont *)titleFont;       // bold 16, screen titles
