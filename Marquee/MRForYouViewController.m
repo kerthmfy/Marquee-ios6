@@ -691,6 +691,10 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
                    name:MRPreferencesDidChangeNotification
                  object:nil];
     [center addObserver:self
+               selector:@selector(recommendationsDidReset:)
+                   name:MRRecommendationsDidResetNotification
+                 object:nil];
+    [center addObserver:self
                selector:@selector(applicationDidBecomeActive:)
                    name:UIApplicationDidBecomeActiveNotification
                  object:nil];
@@ -743,6 +747,12 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 
 - (void)applicationDidBecomeActive:(NSNotification *)notification {
     [self refreshFeedForce:NO];
+}
+
+- (void)recommendationsDidReset:(NSNotification *)notification {
+    if (self.isSignedIn) {
+        [self refreshFeedForce:YES];
+    }
 }
 
 - (void)updatePreferencesSignature {

@@ -56,7 +56,8 @@
         MRLibraryViewController *library =
             [[MRLibraryViewController alloc] initWithEnvironment:environment];
         MRSearchViewController *search = [[MRSearchViewController alloc] init];
-        MRProfileViewController *profile = [[MRProfileViewController alloc] init];
+        MRProfileViewController *profile =
+            [[MRProfileViewController alloc] initWithEnvironment:environment];
 
         NSArray *viewControllers = [NSArray arrayWithObjects:
                                     [self navigationControllerWithRoot:forYou title:@"For You"],

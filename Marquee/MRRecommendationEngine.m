@@ -20,6 +20,9 @@
 #import "MRTasteProfile.h"
 #import "MRURLBuilder.h"
 
+NSString *const MRRecommendationsDidResetNotification =
+    @"MRRecommendationsDidResetNotification";
+
 static const NSTimeInterval MRRecommendationCacheMaxAge = 6.0 * 60.0 * 60.0;
 static const NSTimeInterval MRRecommendationRefreshThrottle = 5.0 * 60.0;
 static const NSUInteger MRRecommendationSeedLimit = 3;
@@ -199,6 +202,12 @@ static MRFeedSection *MRRecommendationRow(MRFeedSource source,
     self.cachedAt = nil;
     self.cachedFingerprint = nil;
     [self.storage removeFileNamed:@"recommendations" error:NULL];
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:MRRecommendationsDidResetNotification
+                          object:self];
+    });
 }
 
 - (void)loadCache {

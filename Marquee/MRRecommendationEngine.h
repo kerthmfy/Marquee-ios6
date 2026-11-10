@@ -38,6 +38,10 @@
 
 @interface MRRecommendationEngine : NSObject
 
+// Posted on the main thread when the cached feed is invalidated. For You uses
+// this to regenerate immediately after Profile resets recommendations.
+extern NSString *const MRRecommendationsDidResetNotification;
+
 // The public Simkl reads shared with the genre picker.
 @property (nonatomic, strong, readonly) id<MRRecommendationDataProviding> dataProvider;
 
