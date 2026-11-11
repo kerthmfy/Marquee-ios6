@@ -441,12 +441,17 @@ static void MRRunConcurrentSyncJoins(void) {
     MRAssertEqualIntegers(1, (NSInteger)provider.calls.count,
                           @"a second sync joins instead of starting another pull");
 
-    [provider completeWithJSON:@{ @"all": @"2026-11-04T12:00:00Z" } error:nil];
+    [provider completeWithJSON:MRFixture(@"activities-saved") error:nil];
     MRAssertEqualIntegers(2, (NSInteger)provider.calls.count,
                           @"shows follow the resolved activities");
     [provider completeWithJSON:MRFixture(@"sync-shows") error:nil];
     [provider completeWithJSON:MRFixture(@"sync-movies") error:nil];
     [provider completeWithJSON:MRFixture(@"sync-anime") error:nil];
+
+    MRAssertTrue(engine.isSyncing, @"a joined request queued one more pass");
+    MRAssertEqualIntegers(5, (NSInteger)provider.calls.count,
+                          @"the queued pass starts with a fresh activities gate");
+    [provider completeWithJSON:MRFixture(@"activities-saved") error:nil];
 
     MRAssertTrue(!engine.isSyncing, @"the joined sync completes once");
     MRAssertEqualIntegers(2, (NSInteger)completions,

@@ -1,0 +1,10 @@
+{
+  "movies": [
+    {
+      "ids": {
+        "simkl": 888
+      },
+      "user_rating": 6
+    }
+  ]
+}

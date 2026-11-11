@@ -22,6 +22,7 @@ void MRRunMRLayoutTests(void);
 void MRRunStorageTests(void);
 void MRRunMRLibraryStoreTests(void);
 void MRRunMRSyncInitialTests(void);
+void MRRunSyncDeltaTests(void);
 void MRRunLibraryFilterTests(void);
 void MRRunRelatedItemTests(void);
 void MRRunOutboxTests(void);
@@ -85,6 +86,9 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"sync initial");
         MRRunMRSyncInitialTests();
+
+        MRTestBeginSuite(@"sync delta");
+        MRRunSyncDeltaTests();
 
         MRTestBeginSuite(@"library filter");
         MRRunLibraryFilterTests();

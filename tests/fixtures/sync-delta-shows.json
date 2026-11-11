@@ -1,0 +1,26 @@
+{
+  "shows": [
+    {
+      "status": "watching",
+      "user_rating": 9,
+      "watched_episodes_count": 5,
+      "total_episodes_count": 10,
+      "next_to_watch_info": {
+        "season": 2,
+        "episode": 3,
+        "title": "Delta Next",
+        "date": "2026-11-10T00:00:00Z"
+      },
+      "show": {
+        "title": "Delta Show",
+        "year": 2024,
+        "ids": {
+          "simkl": 777,
+          "slug": "delta-show"
+        },
+        "poster": "7/777",
+        "fanart": "8/888"
+      }
+    }
+  ]
+}

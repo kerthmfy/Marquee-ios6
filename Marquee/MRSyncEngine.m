@@ -8,9 +8,13 @@
 #import "MRError.h"
 #import "MRLibraryStore.h"
 #import "MRMediaItem.h"
+#import "MROutbox.h"
 #import "MRStorage.h"
+#import "MRUserProfile.h"
 
 NSString *const MRSyncStatusDidChangeNotification = @"MRSyncStatusDidChangeNotification";
+
+static const NSTimeInterval MRSyncAutomaticInterval = 15.0 * 60.0;
 
 static void MRSyncDeliverOnMain(void (^block)(void)) {
     if (block == nil) {
@@ -46,27 +50,83 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
               @(MRWatchStatusDropped) ];
 }
 
+static NSString *MRSyncActivitiesDomainKey(MRMediaType type) {
+    switch (type) {
+        case MRMediaTypeShow:
+            return @"tv_shows";
+        case MRMediaTypeAnime:
+            return @"anime";
+        case MRMediaTypeMovie:
+        default:
+            return @"movies";
+    }
+}
+
+static NSString *MRSyncActivitiesString(id value) {
+    return [value isKindOfClass:[NSString class]] ? (NSString *)value : nil;
+}
+
+static BOOL MRSyncActivitiesStringsDiffer(id first, id second) {
+    NSString *left = MRSyncActivitiesString(first);
+    NSString *right = MRSyncActivitiesString(second);
+    if (left == nil && right == nil) {
+        return NO;
+    }
+    return ![left isEqualToString:right];
+}
+
+static NSDictionary *MRSyncActivitiesDomain(NSDictionary *activities, NSString *key) {
+    id domain = [activities isKindOfClass:[NSDictionary class]]
+        ? [activities objectForKey:key] : nil;
+    return [domain isKindOfClass:[NSDictionary class]] ? domain : nil;
+}
+
+// Phase 2 is only safe when the saved snapshot carries the complete activities
+// shape. Older or partial state falls back to a full phase-1 pull.
+static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
+    if (![activities isKindOfClass:[NSDictionary class]] ||
+        MRSyncActivitiesString([activities objectForKey:@"all"]).length == 0) {
+        return NO;
+    }
+    NSArray *keys = @[ @"tv_shows", @"movies", @"anime" ];
+    for (NSString *key in keys) {
+        if (MRSyncActivitiesDomain(activities, key) == nil) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 @interface MRSyncEngine ()
 @property (nonatomic, strong) id<MRSyncDataProviding> dataProvider;
 @property (nonatomic, strong) MRLibraryStore *libraryStore;
 @property (nonatomic, strong) MRStorage *storage;
 @property (nonatomic, strong) id<MRClock> clock;
+@property (nonatomic, strong) MROutbox *outbox;
 @property (nonatomic, assign, readwrite, getter=isSyncing) BOOL syncing;
 @property (nonatomic, strong, readwrite) NSDate *lastSyncAt;
 @property (nonatomic, strong, readwrite) NSDate *lastSyncAttemptAt;
 @property (nonatomic, strong, readwrite) NSError *lastSyncError;
 - (void)finishCancelled;
 - (void)deliverCompletionsWithError:(NSError *)error;
+- (void)fetchActivities;
+- (void)processPhase2Activities:(NSDictionary *)activities;
+- (void)finishPhase2WithActivities:(NSDictionary *)activities;
 @end
 
 @implementation MRSyncEngine {
     NSMutableArray *_completionBlocks;
     NSMutableArray *_items;
     NSMutableSet *_itemIdentifiers;
+    NSMutableDictionary *_ratings;
+    NSMutableArray *_removedIdentifiers;
+    MRUserProfile *_profile;
     NSDictionary *_activities;
+    NSString *_savedActivitiesAll;
     id<MRHTTPTask> _currentTask;
     BOOL _finished;
     BOOL _cancelled;
+    BOOL _needsSync;
 }
 
 - (instancetype)initWithDataProvider:(id<MRSyncDataProviding>)dataProvider
@@ -83,6 +143,14 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
         _completionBlocks = [NSMutableArray array];
     }
     return self;
+}
+
+- (NSUInteger)pendingCount {
+    return self.outbox.pendingCount;
+}
+
+- (void)setOutbox:(MROutbox *)outbox {
+    _outbox = outbox;
 }
 
 #pragma mark - State
@@ -106,6 +174,8 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
 - (void)syncWithCompletion:(void (^)(NSError *error))completion {
     MRSyncDeliverOnMain(^{
         if (self.isSyncing) {
+            // The next pass gets a fresh activities gate; callers wait for it.
+            _needsSync = YES;
             [self addCompletion:completion];
             return;
         }
@@ -115,13 +185,30 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
         self.lastSyncAttemptAt = [self.clock now];
         _finished = NO;
         _cancelled = NO;
+        _needsSync = NO;
         _activities = nil;
+        _savedActivitiesAll = nil;
         _items = [NSMutableArray array];
         _itemIdentifiers = [NSMutableSet set];
+        _ratings = [NSMutableDictionary dictionary];
+        _removedIdentifiers = [NSMutableArray array];
+        _profile = nil;
         [_completionBlocks removeAllObjects];
         [self addCompletion:completion];
         [self postStatusChange];
         [self fetchActivities];
+    });
+}
+
+- (void)noteForegroundAtDate:(NSDate *)date {
+    MRSyncDeliverOnMain(^{
+        NSDate *now = date != nil ? date : [self.clock now];
+        NSDate *attempt = self.lastSyncAttemptAt;
+        if (attempt != nil &&
+            [now timeIntervalSinceDate:attempt] < MRSyncAutomaticInterval) {
+            return;
+        }
+        [self syncWithCompletion:nil];
     });
 }
 
@@ -173,7 +260,13 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
             [strongSelf finishWithError:[MRError errorWithKind:MRErrorKindParse]];
             return;
         }
-        strongSelf->_activities = [json copy];
+        NSDictionary *activities = (NSDictionary *)json;
+        if (MRSyncActivitiesAreComplete(strongSelf.libraryStore.activities)) {
+            [strongSelf processPhase2Activities:activities];
+            return;
+        }
+
+        strongSelf->_activities = [activities copy];
         [strongSelf fetchType:MRMediaTypeShow
                 nextWatchInfo:YES
                    completion:^(NSError *typeError) {
@@ -350,6 +443,253 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
     }
 }
 
+- (NSArray *)phase2DomainsWithSavedActivities:(NSDictionary *)saved
+                                    current:(NSDictionary *)current {
+    NSArray *types = @[ @(MRMediaTypeShow), @(MRMediaTypeMovie), @(MRMediaTypeAnime) ];
+    NSMutableArray *domains = [NSMutableArray array];
+    for (NSNumber *number in types) {
+        MRMediaType type = (MRMediaType)[number integerValue];
+        NSString *key = MRSyncActivitiesDomainKey(type);
+        NSDictionary *savedDomain = MRSyncActivitiesDomain(saved, key);
+        NSDictionary *currentDomain = MRSyncActivitiesDomain(current, key);
+        BOOL itemsMoved = MRSyncActivitiesStringsDiffer(
+            [savedDomain objectForKey:@"all"], [currentDomain objectForKey:@"all"]);
+        BOOL ratingsMoved = MRSyncActivitiesStringsDiffer(
+            [savedDomain objectForKey:@"rated_at"],
+            [currentDomain objectForKey:@"rated_at"]);
+        BOOL removalsMoved = MRSyncActivitiesStringsDiffer(
+            [savedDomain objectForKey:@"removed_from_list"],
+            [currentDomain objectForKey:@"removed_from_list"]);
+        if (!itemsMoved && !ratingsMoved && !removalsMoved) {
+            continue;
+        }
+        [domains addObject:@{
+            @"type": number,
+            @"items": @(itemsMoved),
+            @"ratings": @(ratingsMoved),
+            @"removals": @(removalsMoved)
+        }];
+    }
+    return domains;
+}
+
+- (void)processPhase2Activities:(NSDictionary *)activities {
+    if (_finished || _cancelled) {
+        return;
+    }
+    NSDictionary *saved = self.libraryStore.activities;
+    NSString *savedAll = MRSyncActivitiesString([saved objectForKey:@"all"]);
+    NSString *currentAll = MRSyncActivitiesString([activities objectForKey:@"all"]);
+    if (savedAll.length == 0 || currentAll.length == 0) {
+        [self finishWithError:[MRError errorWithKind:MRErrorKindParse]];
+        return;
+    }
+
+    if ([currentAll isEqualToString:savedAll]) {
+        self.lastSyncAt = [self.clock now];
+        [self finishWithError:nil];
+        return;
+    }
+
+    _savedActivitiesAll = [savedAll copy];
+    _activities = [activities copy];
+    NSArray *domains = [self phase2DomainsWithSavedActivities:saved
+                                                      current:activities];
+    __weak MRSyncEngine *weakSelf = self;
+    [self fetchPhase2ItemsForDomains:domains
+                               index:0
+                          completion:^(NSError *itemsError) {
+        MRSyncEngine *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf->_finished) {
+            return;
+        }
+        if (itemsError != nil) {
+            [strongSelf finishWithError:itemsError];
+            return;
+        }
+        [strongSelf fetchPhase2RatingsForDomains:domains
+                                           index:0
+                                      completion:^(NSError *ratingsError) {
+            MRSyncEngine *innerSelf = weakSelf;
+            if (innerSelf == nil || innerSelf->_finished) {
+                return;
+            }
+            if (ratingsError != nil) {
+                [innerSelf finishWithError:ratingsError];
+                return;
+            }
+            [innerSelf finishPhase2WithActivities:activities];
+        }];
+    }];
+}
+
+- (void)fetchPhase2ItemsForDomains:(NSArray *)domains
+                             index:(NSUInteger)index
+                        completion:(void (^)(NSError *error))completion {
+    if (_finished || _cancelled) {
+        return;
+    }
+    if (index >= domains.count) {
+        completion(nil);
+        return;
+    }
+
+    NSDictionary *domain = [domains objectAtIndex:index];
+    if (![[domain objectForKey:@"items"] boolValue]) {
+        [self fetchPhase2ItemsForDomains:domains index:index + 1 completion:completion];
+        return;
+    }
+
+    MRMediaType type = (MRMediaType)[[domain objectForKey:@"type"] integerValue];
+    __weak MRSyncEngine *weakSelf = self;
+    _currentTask = [self.dataProvider fetchAllItemsForType:type
+                                                    status:MRWatchStatusNone
+                                                  dateFrom:_savedActivitiesAll
+                                                   idsOnly:NO
+                                              nextWatchInfo:type != MRMediaTypeMovie
+                                                 completion:^(NSDictionary *json,
+                                                              NSError *error) {
+        MRSyncEngine *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf->_finished) {
+            return;
+        }
+        strongSelf->_currentTask = nil;
+        if (error != nil) {
+            completion(error);
+            return;
+        }
+        NSError *parseError = nil;
+        NSArray *items = [strongSelf itemsFromJSON:json type:type error:&parseError];
+        if (items == nil) {
+            completion(parseError);
+            return;
+        }
+        [strongSelf appendItems:items];
+        [strongSelf fetchPhase2ItemsForDomains:domains
+                                         index:index + 1
+                                    completion:completion];
+    }];
+}
+
+- (BOOL)applyRatingsJSON:(NSDictionary *)json
+                    type:(MRMediaType)type
+                   error:(NSError **)error {
+    id entries = nil;
+    if ([json isKindOfClass:[NSArray class]]) {
+        entries = json;
+    } else if ([json isKindOfClass:[NSDictionary class]]) {
+        entries = [json objectForKey:MRSyncTypeKey(type)];
+    }
+    if (![entries isKindOfClass:[NSArray class]]) {
+        if (error != NULL) {
+            *error = [MRError errorWithKind:MRErrorKindParse];
+        }
+        return NO;
+    }
+
+    for (id entry in (NSArray *)entries) {
+        NSInteger simklID = 0;
+        id rating = nil;
+        if ([entry isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *dictionary = (NSDictionary *)entry;
+            NSDictionary *ids = [dictionary objectForKey:@"ids"];
+            if ([ids isKindOfClass:[NSDictionary class]]) {
+                id value = [ids objectForKey:@"simkl"];
+                if (value == nil) {
+                    value = [ids objectForKey:@"simkl_id"];
+                }
+                simklID = [value integerValue];
+            }
+            if (simklID <= 0) {
+                simklID = [[dictionary objectForKey:@"simkl_id"] integerValue];
+            }
+            if ([dictionary objectForKey:@"user_rating"] != nil) {
+                rating = [dictionary objectForKey:@"user_rating"];
+            }
+        } else if ([entry isKindOfClass:[NSNumber class]] ||
+                   [entry isKindOfClass:[NSString class]]) {
+            simklID = [entry integerValue];
+        }
+        if (simklID <= 0 || rating == nil) {
+            continue;
+        }
+
+        id value = [NSNull null];
+        if ([rating isKindOfClass:[NSNumber class]]) {
+            value = rating;
+        } else if ([rating isKindOfClass:[NSString class]] && [rating length] > 0) {
+            value = @([rating integerValue]);
+        }
+        NSString *identifier = [NSString stringWithFormat:@"%ld:%ld",
+                                (long)type, (long)simklID];
+        [_ratings setObject:value forKey:identifier];
+    }
+    return YES;
+}
+
+- (void)fetchPhase2RatingsForDomains:(NSArray *)domains
+                               index:(NSUInteger)index
+                          completion:(void (^)(NSError *error))completion {
+    if (_finished || _cancelled) {
+        return;
+    }
+    if (index >= domains.count) {
+        completion(nil);
+        return;
+    }
+
+    NSDictionary *domain = [domains objectAtIndex:index];
+    if (![[domain objectForKey:@"ratings"] boolValue]) {
+        [self fetchPhase2RatingsForDomains:domains
+                                     index:index + 1
+                                completion:completion];
+        return;
+    }
+
+    MRMediaType type = (MRMediaType)[[domain objectForKey:@"type"] integerValue];
+    __weak MRSyncEngine *weakSelf = self;
+    _currentTask = [self.dataProvider fetchRatingsForType:type
+                                                 dateFrom:_savedActivitiesAll
+                                               completion:^(NSDictionary *json,
+                                                            NSError *error) {
+        MRSyncEngine *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf->_finished) {
+            return;
+        }
+        strongSelf->_currentTask = nil;
+        if (error != nil) {
+            completion(error);
+            return;
+        }
+        NSError *parseError = nil;
+        if (![strongSelf applyRatingsJSON:json type:type error:&parseError]) {
+            completion(parseError);
+            return;
+        }
+        [strongSelf fetchPhase2RatingsForDomains:domains
+                                           index:index + 1
+                                      completion:completion];
+    }];
+}
+
+- (void)finishPhase2WithActivities:(NSDictionary *)activities {
+    NSError *saveError = nil;
+    BOOL saved = [self.libraryStore mergeWithItems:_items
+                                removedIdentifiers:_removedIdentifiers
+                                           ratings:_ratings
+                                        activities:activities
+                                           profile:_profile
+                                             error:&saveError];
+    if (!saved) {
+        [self finishWithError:saveError != nil
+                                 ? saveError
+                                 : [MRError errorWithKind:MRErrorKindUnknown]];
+        return;
+    }
+    self.lastSyncAt = [self.clock now];
+    [self finishWithError:nil];
+}
+
 - (void)finishSuccessfully {
     if (_finished) {
         return;
@@ -376,11 +716,32 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
         return;
     }
     _finished = YES;
+    _needsSync = NO;
     _currentTask = nil;
     self.lastSyncError = nil;
     self.syncing = NO;
     [self postStatusChange];
     [self deliverCompletionsWithError:[MRError errorWithKind:MRErrorKindCancelled]];
+}
+
+- (BOOL)beginQueuedPassIfNeededWithError:(NSError *)error {
+    if (error != nil || _cancelled || !_needsSync) {
+        _needsSync = NO;
+        return NO;
+    }
+
+    _needsSync = NO;
+    _finished = NO;
+    _activities = nil;
+    _savedActivitiesAll = nil;
+    _items = [NSMutableArray array];
+    _itemIdentifiers = [NSMutableSet set];
+    _ratings = [NSMutableDictionary dictionary];
+    _removedIdentifiers = [NSMutableArray array];
+    _profile = nil;
+    self.lastSyncAttemptAt = [self.clock now];
+    [self fetchActivities];
+    return YES;
 }
 
 - (void)finishWithError:(NSError *)error {
@@ -390,6 +751,10 @@ static NSArray *MRSyncStatusesForType(MRMediaType type) {
     _finished = YES;
     _currentTask = nil;
     self.lastSyncError = error;
+    if ([self beginQueuedPassIfNeededWithError:error]) {
+        return;
+    }
+    _needsSync = NO;
     self.syncing = NO;
     [self postStatusChange];
     [self deliverCompletionsWithError:error];

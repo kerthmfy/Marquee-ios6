@@ -9,6 +9,7 @@
 #import "MRWatchStatus.h"
 
 @class MRLibraryStore;
+@class MROutbox;
 @class MRStorage;
 @protocol MRClock;
 
@@ -41,13 +42,22 @@ extern NSString *const MRSyncStatusDidChangeNotification;
 @property (nonatomic, strong, readonly) NSDate *lastSyncAt;
 @property (nonatomic, strong, readonly) NSDate *lastSyncAttemptAt;
 @property (nonatomic, strong, readonly) NSError *lastSyncError;
+@property (nonatomic, readonly) NSUInteger pendingCount;
 
 - (instancetype)initWithDataProvider:(id<MRSyncDataProviding>)dataProvider
                         libraryStore:(MRLibraryStore *)libraryStore
                              storage:(MRStorage *)storage
                                clock:(id<MRClock>)clock;
 
+// Set once the account's outbox exists. pendingCount mirrors its queue length.
+- (void)setOutbox:(MROutbox *)outbox;
+
 - (void)syncWithCompletion:(void (^)(NSError *error))completion;
+
+// Foreground/launch trigger. Automatic syncs are coalesced to one attempt per
+// 15 minutes. A manual syncWithCompletion: is never throttled.
+- (void)noteForegroundAtDate:(NSDate *)date;
+
 - (void)cancel;
 
 // Wipes the saved snapshot and runs phase 1 again. The outbox is never touched.

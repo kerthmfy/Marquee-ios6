@@ -208,6 +208,7 @@
     MROutbox *outbox = [[MROutbox alloc] initWithStorage:storage];
     [outbox load:NULL];
     self.environment.outbox = outbox;
+    [engine setOutbox:outbox];
     self.environment.writeService =
         [[MRWriteService alloc] initWithAPIClient:self.environment.apiClient
                                           outbox:outbox
