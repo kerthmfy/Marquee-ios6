@@ -1,0 +1,33 @@
+{
+  "all": "2026-11-05T09:00:00Z",
+  "tv_shows": {
+    "all": "2026-11-04T11:00:00Z",
+    "rated_at": "2026-11-01T00:00:00Z",
+    "removed_from_list": null
+  },
+  "movies": {
+    "all": "2026-11-03T10:00:00Z",
+    "rated_at": "2026-11-02T00:00:00Z",
+    "removed_from_list": "2026-11-05T09:00:00Z"
+  },
+  "anime": {
+    "all": "2026-11-02T09:00:00Z",
+    "rated_at": "2026-11-01T00:00:00Z",
+    "removed_from_list": null
+  },
+  "settings": {
+    "all": null
+  },
+  "playback": {
+    "all": "2026-11-01T00:00:00Z"
+  },
+  "custom_lists": {
+    "lists": {
+      "regular": null,
+      "all": null,
+      "favorites": null,
+      "recommendations": null,
+      "auto": null
+    }
+  }
+}

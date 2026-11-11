@@ -208,7 +208,7 @@ static NSNumber *MRRetryAfterSeconds(NSDictionary *headers) {
         case MRErrorKindNotFound:
             return @"Simkl could not find that title.";
         case MRErrorKindTooLarge:
-            return @"Your Simkl library is too large to load in one request.";
+            return @"Your library is too large for one sync";
         case MRErrorKindServer:
             return @"Simkl is having trouble right now. Try again later.";
         case MRErrorKindParse:

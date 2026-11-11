@@ -58,6 +58,9 @@ extern NSString *const MRSyncStatusDidChangeNotification;
 // 15 minutes. A manual syncWithCompletion: is never throttled.
 - (void)noteForegroundAtDate:(NSDate *)date;
 
+// Called after the outbox drains. Runs one delta sync, at most once per minute.
+- (void)noteOutboxDrainedAtDate:(NSDate *)date;
+
 - (void)cancel;
 
 // Wipes the saved snapshot and runs phase 1 again. The outbox is never touched.

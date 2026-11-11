@@ -408,6 +408,37 @@ static void MRRunDeltaFailureKeepsSnapshotTest(void) {
     MRDeltaRemoveRoot(root);
 }
 
+static void MRRunOutboxDrainThrottleTest(void) {
+    NSString *root = MRDeltaTestRoot();
+    NSDictionary *saved = MRFixture(@"activities-saved");
+    MRLibraryStore *store = MRDeltaStoreWithSnapshot(root,
+        @[ MRDeltaShow(777, MRWatchStatusCompleted, 2, 1) ], saved);
+
+    MRDeltaProvider *provider = [[MRDeltaProvider alloc] init];
+    [provider enqueueJSON:saved];
+    MRFakeClock *clock = [[MRFakeClock alloc] init];
+    MRSyncEngine *engine = MRDeltaEngine(provider, store, clock);
+
+    [engine noteOutboxDrainedAtDate:clock.now];
+    MRAssertTrue(MRDeltaWaitForIdle(engine), @"the outbox-drain sync finishes");
+    MRAssertEqualIntegers(1, (NSInteger)provider.calls.count,
+                          @"the first outbox drain starts one delta sync");
+
+    [engine noteOutboxDrainedAtDate:[clock.now dateByAddingTimeInterval:30.0]];
+    MRAssertTrue(!engine.isSyncing, @"an outbox drain inside one minute is ignored");
+    MRAssertEqualIntegers(1, (NSInteger)provider.calls.count,
+                          @"the outbox-drain throttle sends no request before a minute");
+
+    [provider enqueueJSON:saved];
+    [clock advanceBy:61.0];
+    [engine noteOutboxDrainedAtDate:clock.now];
+    MRAssertTrue(MRDeltaWaitForIdle(engine), @"the throttled outbox-drain sync finishes");
+    MRAssertEqualIntegers(2, (NSInteger)provider.calls.count,
+                          @"an outbox drain after a minute starts a new delta sync");
+
+    MRDeltaRemoveRoot(root);
+}
+
 static void MRRunForegroundThrottleTest(void) {
     NSString *root = MRDeltaTestRoot();
     NSDictionary *saved = MRFixture(@"activities-saved");
@@ -519,6 +550,7 @@ void MRRunSyncDeltaTests(void) {
     MRRunDeltaMovedDomainsTest();
     MRRunDeltaNullRatingTest();
     MRRunDeltaFailureKeepsSnapshotTest();
+    MRRunOutboxDrainThrottleTest();
     MRRunForegroundThrottleTest();
     MRRunInFlightNeedsSyncTest();
     MRRunPendingCountTest();

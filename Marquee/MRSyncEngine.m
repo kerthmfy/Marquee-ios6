@@ -15,6 +15,7 @@
 NSString *const MRSyncStatusDidChangeNotification = @"MRSyncStatusDidChangeNotification";
 
 static const NSTimeInterval MRSyncAutomaticInterval = 15.0 * 60.0;
+static const NSTimeInterval MRSyncOutboxDrainInterval = 60.0;
 
 static void MRSyncDeliverOnMain(void (^block)(void)) {
     if (block == nil) {
@@ -112,6 +113,9 @@ static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
 - (void)fetchActivities;
 - (void)processPhase2Activities:(NSDictionary *)activities;
 - (void)finishPhase2WithActivities:(NSDictionary *)activities;
+- (void)fetchPhase2RemovalsForDomains:(NSArray *)domains
+                               index:(NSUInteger)index
+                          completion:(void (^)(NSError *error))completion;
 @end
 
 @implementation MRSyncEngine {
@@ -127,6 +131,7 @@ static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
     BOOL _finished;
     BOOL _cancelled;
     BOOL _needsSync;
+    NSDate *_lastOutboxDrainSyncAt;
 }
 
 - (instancetype)initWithDataProvider:(id<MRSyncDataProviding>)dataProvider
@@ -208,6 +213,19 @@ static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
             [now timeIntervalSinceDate:attempt] < MRSyncAutomaticInterval) {
             return;
         }
+        [self syncWithCompletion:nil];
+    });
+}
+
+- (void)noteOutboxDrainedAtDate:(NSDate *)date {
+    MRSyncDeliverOnMain(^{
+        NSDate *now = date != nil ? date : [self.clock now];
+        if (_lastOutboxDrainSyncAt != nil &&
+            [now timeIntervalSinceDate:_lastOutboxDrainSyncAt] <
+                MRSyncOutboxDrainInterval) {
+            return;
+        }
+        _lastOutboxDrainSyncAt = now;
         [self syncWithCompletion:nil];
     });
 }
@@ -507,19 +525,195 @@ static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
             [strongSelf finishWithError:itemsError];
             return;
         }
-        [strongSelf fetchPhase2RatingsForDomains:domains
-                                           index:0
-                                      completion:^(NSError *ratingsError) {
-            MRSyncEngine *innerSelf = weakSelf;
-            if (innerSelf == nil || innerSelf->_finished) {
+        [strongSelf fetchPhase2RemovalsForDomains:domains
+                                            index:0
+                                       completion:^(NSError *removalsError) {
+            MRSyncEngine *removalSelf = weakSelf;
+            if (removalSelf == nil || removalSelf->_finished) {
                 return;
             }
-            if (ratingsError != nil) {
-                [innerSelf finishWithError:ratingsError];
+            if (removalsError != nil) {
+                [removalSelf finishWithError:removalsError];
                 return;
             }
-            [innerSelf finishPhase2WithActivities:activities];
+            [removalSelf fetchPhase2SettingsForActivities:activities
+                                                completion:^(NSError *settingsError) {
+                MRSyncEngine *settingsSelf = weakSelf;
+                if (settingsSelf == nil || settingsSelf->_finished) {
+                    return;
+                }
+                if (settingsError != nil) {
+                    [settingsSelf finishWithError:settingsError];
+                    return;
+                }
+                [settingsSelf fetchPhase2RatingsForDomains:domains
+                                                     index:0
+                                                completion:^(NSError *ratingsError) {
+                    MRSyncEngine *innerSelf = weakSelf;
+                    if (innerSelf == nil || innerSelf->_finished) {
+                        return;
+                    }
+                    if (ratingsError != nil) {
+                        [innerSelf finishWithError:ratingsError];
+                        return;
+                    }
+                    [innerSelf finishPhase2WithActivities:activities];
+                }];
+            }];
         }];
+    }];
+}
+
+- (BOOL)applyRemovalsJSON:(NSDictionary *)json
+                     type:(MRMediaType)type
+                    error:(NSError **)error {
+    id entries = nil;
+    if ([json isKindOfClass:[NSDictionary class]]) {
+        entries = [json objectForKey:MRSyncTypeKey(type)];
+    }
+    if (entries == [NSNull null]) {
+        entries = @[];
+    }
+    if (![entries isKindOfClass:[NSArray class]]) {
+        if (error != NULL) {
+            *error = [MRError errorWithKind:MRErrorKindParse];
+        }
+        return NO;
+    }
+
+    NSMutableSet *remoteIdentifiers = [NSMutableSet set];
+    for (id entry in (NSArray *)entries) {
+        if ([entry isKindOfClass:[NSNumber class]] ||
+            [entry isKindOfClass:[NSString class]]) {
+            NSInteger simklID = [entry integerValue];
+            if (simklID > 0) {
+                [remoteIdentifiers addObject:
+                    [NSString stringWithFormat:@"%ld:%ld", (long)type, (long)simklID]];
+            }
+            continue;
+        }
+        if (![entry isKindOfClass:[NSDictionary class]]) {
+            continue;
+        }
+        NSDictionary *dictionary = (NSDictionary *)entry;
+        NSInteger simklID = 0;
+        NSDictionary *ids = [dictionary objectForKey:@"ids"];
+        if ([ids isKindOfClass:[NSDictionary class]]) {
+            id value = [ids objectForKey:@"simkl"];
+            if (value == nil) {
+                value = [ids objectForKey:@"simkl_id"];
+            }
+            simklID = [value integerValue];
+        }
+        if (simklID <= 0) {
+            id value = [dictionary objectForKey:@"simkl_id"];
+            if (value == nil && [dictionary objectForKey:@"id"] != nil) {
+                value = [dictionary objectForKey:@"id"];
+            }
+            simklID = [value integerValue];
+        }
+        if (simklID > 0) {
+            [remoteIdentifiers addObject:
+                [NSString stringWithFormat:@"%ld:%ld", (long)type, (long)simklID]];
+        }
+    }
+
+    for (MRMediaItem *item in self.libraryStore.items) {
+        if (item.type != type) {
+            continue;
+        }
+        if (![remoteIdentifiers containsObject:[item identifier]]) {
+            [_removedIdentifiers addObject:[item identifier]];
+        }
+    }
+    return YES;
+}
+
+- (void)fetchPhase2RemovalsForDomains:(NSArray *)domains
+                               index:(NSUInteger)index
+                          completion:(void (^)(NSError *error))completion {
+    if (_finished || _cancelled) {
+        return;
+    }
+    if (index >= domains.count) {
+        completion(nil);
+        return;
+    }
+
+    NSDictionary *domain = [domains objectAtIndex:index];
+    if (![[domain objectForKey:@"removals"] boolValue]) {
+        [self fetchPhase2RemovalsForDomains:domains
+                                      index:index + 1
+                                 completion:completion];
+        return;
+    }
+
+    MRMediaType type = (MRMediaType)[[domain objectForKey:@"type"] integerValue];
+    __weak MRSyncEngine *weakSelf = self;
+    _currentTask = [self.dataProvider fetchAllItemsForType:type
+                                                    status:MRWatchStatusNone
+                                                  dateFrom:nil
+                                                   idsOnly:YES
+                                              nextWatchInfo:NO
+                                                 completion:^(NSDictionary *json,
+                                                              NSError *error) {
+        MRSyncEngine *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf->_finished) {
+            return;
+        }
+        strongSelf->_currentTask = nil;
+        if (error != nil) {
+            completion(error);
+            return;
+        }
+        NSError *parseError = nil;
+        if (![strongSelf applyRemovalsJSON:json type:type error:&parseError]) {
+            completion(parseError);
+            return;
+        }
+        [strongSelf fetchPhase2RemovalsForDomains:domains
+                                           index:index + 1
+                                      completion:completion];
+    }];
+}
+
+- (void)fetchPhase2SettingsForActivities:(NSDictionary *)activities
+                              completion:(void (^)(NSError *error))completion {
+    NSDictionary *saved = self.libraryStore.activities;
+    NSString *savedSettings = MRSyncActivitiesString(
+        [MRSyncActivitiesDomain(saved, @"settings") objectForKey:@"all"]);
+    NSString *currentSettings = MRSyncActivitiesString(
+        [MRSyncActivitiesDomain(activities, @"settings") objectForKey:@"all"]);
+    if (!MRSyncActivitiesStringsDiffer(savedSettings, currentSettings)) {
+        completion(nil);
+        return;
+    }
+
+    __weak MRSyncEngine *weakSelf = self;
+    _currentTask = [self.dataProvider fetchUserSettingsWithCompletion:
+                    ^(NSDictionary *json, NSError *error) {
+        MRSyncEngine *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf->_finished) {
+            return;
+        }
+        strongSelf->_currentTask = nil;
+        if (error != nil) {
+            completion(error);
+            return;
+        }
+        if (![json isKindOfClass:[NSDictionary class]]) {
+            completion([MRError errorWithKind:MRErrorKindParse]);
+            return;
+        }
+        MRUserProfile *profile = [MRUserProfile profileWithSettingsDictionary:json];
+        if (profile.accountID > 0 &&
+            strongSelf.libraryStore.profile.accountID > 0 &&
+            profile.accountID != strongSelf.libraryStore.profile.accountID) {
+            completion([MRError errorWithKind:MRErrorKindParse]);
+            return;
+        }
+        strongSelf->_profile = profile;
+        completion(nil);
     }];
 }
 

@@ -246,6 +246,10 @@
         if (!stoppedOnTransient && progressed &&
             strongSelf.environment.outbox.pendingCount > 0) {
             [strongSelf flushOutbox];
+            return;
+        }
+        if (progressed && strongSelf.environment.outbox.pendingCount == 0) {
+            [strongSelf.environment.syncEngine noteOutboxDrainedAtDate:nil];
         }
     }];
 }
