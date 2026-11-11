@@ -663,8 +663,7 @@ static void MRDeliverOnMain(void (^block)(void)) {
 
 #pragma mark - Authenticated sync reads
 
-static NSString *MRAPIClientSyncTypeKey(MRMediaType type) {
-    switch (type) {
+static NSString *MRAPIClientSyncTypeKey(MRMediaType type) {    switch (type) {
         case MRMediaTypeShow:
             return @"shows";
         case MRMediaTypeAnime:
@@ -699,6 +698,34 @@ static NSString *MRAPIClientSyncTypeKey(MRMediaType type) {
                                                   completion:completion];
     [call start];
     return call;
+}
+
+- (id<MRHTTPTask>)searchAllWithQuery:(NSString *)query
+                                page:(NSUInteger)page
+                          completion:(void (^)(NSArray *json, NSError *error))completion {
+    if (![query isKindOfClass:[NSString class]] || query.length == 0 || page < 1) {
+        MRDeliverOnMain(^{
+            if (completion != nil) {
+                completion(nil, [MRError errorWithKind:MRErrorKindUnknown]);
+            }
+        });
+        return nil;
+    }
+
+    NSDictionary *parameters = @{
+        @"q": query,
+        @"extended": @"full",
+        @"limit": @30,
+        @"page": @(page)
+    };
+    return [self fetchAuthenticatedPath:@"search/all"
+                                  query:parameters
+                          expectedClass:[NSArray class]
+                             completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSArray *)json, error);
+        }
+    }];
 }
 
 - (id<MRHTTPTask>)fetchActivitiesWithCompletion:

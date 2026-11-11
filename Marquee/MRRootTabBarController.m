@@ -55,7 +55,11 @@
             [[MRForYouViewController alloc] initWithEnvironment:environment];
         MRLibraryViewController *library =
             [[MRLibraryViewController alloc] initWithEnvironment:environment];
-        MRSearchViewController *search = [[MRSearchViewController alloc] init];
+        MRSearchViewController *search =
+            [[MRSearchViewController alloc] initWithAPIClient:environment.apiClient
+                                                   preferences:environment.preferences
+                                                    imageCache:environment.imageCache];
+        search.environment = environment;
         MRProfileViewController *profile =
             [[MRProfileViewController alloc] initWithEnvironment:environment];
 

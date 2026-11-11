@@ -36,6 +36,12 @@
 - (id<MRHTTPTask>)fetchGenre:(NSString *)slug forType:(MRMediaType)type completion:(void (^)(NSArray *json, NSError *error))completion;
 - (id<MRHTTPTask>)fetchDetailForType:(MRMediaType)type simklID:(NSInteger)simklID completion:(void (^)(NSDictionary *json, NSError *error))completion;
 
+// Authenticated mixed-type search. Results carry endpoint_type so callers can
+// build MRMediaItem values with +itemWithSearchDictionary:.
+- (id<MRHTTPTask>)searchAllWithQuery:(NSString *)query
+                                page:(NSUInteger)page
+                          completion:(void (^)(NSArray *json, NSError *error))completion;
+
 - (id<MRHTTPTask>)fetchActivitiesWithCompletion:(void (^)(NSDictionary *json, NSError *error))completion;
 - (id<MRHTTPTask>)fetchAllItemsForType:(MRMediaType)type
                                status:(MRWatchStatus)status
