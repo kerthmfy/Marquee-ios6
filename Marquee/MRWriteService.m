@@ -280,7 +280,13 @@ static BOOL MRWriteIsPermanentRejection(MRErrorKind kind, NSError *error) {
 
 - (void)postEntries:(NSArray *)entries
          completion:(void (^)(NSDictionary *json, NSError *error))completion {
-    MROutboxEntry *first = entries.firstObject;
+    if (entries.count == 0) {
+        if (completion != nil) {
+            completion(nil, [MRError errorWithKind:MRErrorKindParse]);
+        }
+        return;
+    }
+    MROutboxEntry *first = [entries objectAtIndex:0];
     switch (first.kind) {
         case MROutboxEntryKindStatus:
             [self.apiClient postStatusEntries:entries completion:completion];

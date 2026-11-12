@@ -685,7 +685,8 @@ static MRFeedSection *MRRecommendationRow(MRFeedSource source,
     NSMutableArray *sections = [NSMutableArray array];
     NSMutableSet *used = [NSMutableSet set];
 
-    MRRecommendationCandidate *hero = [sorted firstObject];
+    MRRecommendationCandidate *hero =
+        sorted.count > 0 ? [sorted objectAtIndex:0] : nil;
     if (hero != nil) {
         [used addObject:hero.item.identifier];
         MRFeedSection *section =
@@ -772,7 +773,9 @@ static MRFeedSection *MRRecommendationRow(MRFeedSource source,
     }
 
     // Because You Like <genre>: the top favorite genre's file.
-    NSString *favorite = [context.profile.favoriteGenres firstObject];
+    NSArray *favoriteGenres = context.profile.favoriteGenres;
+    NSString *favorite = favoriteGenres.count > 0
+        ? [favoriteGenres objectAtIndex:0] : nil;
     if (favorite != nil) {
         NSMutableArray *genreRow = [NSMutableArray array];
         for (MRRecommendationCandidate *candidate in sorted) {

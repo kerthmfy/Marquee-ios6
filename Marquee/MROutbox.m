@@ -393,7 +393,7 @@ static const NSUInteger MROutboxMaximumBatch = 20;
         return @[];
     }
 
-    MROutboxEntry *first = entries.firstObject;
+    MROutboxEntry *first = [entries objectAtIndex:0];
     NSMutableArray *batch = [NSMutableArray array];
     NSMutableSet *identifiers = [NSMutableSet set];
     for (MROutboxEntry *entry in entries) {
