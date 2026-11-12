@@ -12,6 +12,7 @@
 #import "MRBannerView.h"
 #import "MRDetailActions.h"
 #import "MRError.h"
+#import "MRErrorPresenter.h"
 #import "MRImageCache.h"
 #import "MRLayout.h"
 #import "MRLibraryStore.h"
@@ -1492,15 +1493,17 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
                          message:@"Simkl couldn't save that change. Refresh the library and try again."];
         [self fetchDetail];
     } else if (result.error != nil) {
-        MRErrorKind kind = [MRError kindForError:result.error];
-        if (kind == MRErrorKindDailyLimit || kind == MRErrorKindAuthExpired) {
-            [self.bannerView showMessage:@"Simkl needs attention. Check your connection."
-                                   style:MRBannerStyleError
-                              retryTitle:@"Retry"];
+        NSString *message = [MRErrorPresenter messageForError:result.error
+                                                    resetDate:nil];
+        MRBannerStyle style = [MRErrorPresenter styleForError:result.error];
+        NSString *retryTitle = [MRErrorPresenter showsRetryForError:result.error]
+            ? @"Retry" : nil;
+        if (message.length > 0) {
+            [self.bannerView showMessage:message
+                                   style:style
+                              retryTitle:retryTitle];
         } else {
-            [self.bannerView showMessage:@"Will sync when online"
-                                   style:MRBannerStyleWarning
-                              retryTitle:@"Retry"];
+            [self.bannerView hide];
         }
         return;
     } else {

@@ -11,6 +11,7 @@
 #import "MRConnectViewController.h"
 #import "MRDetailViewController.h"
 #import "MRError.h"
+#import "MRErrorPresenter.h"
 #import "MRImageCache.h"
 #import "MRLayout.h"
 #import "MRLibraryFilter.h"
@@ -438,7 +439,7 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     MRBannerView *quotaBanner = [[MRBannerView alloc] initWithFrame:CGRectZero];
     self.quotaBannerView = quotaBanner;
 
-    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 320.0, 44.0)];
+    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 0.0, 44.0)];
     footer.backgroundColor = [UIColor clearColor];
     UILabel *footerLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     footerLabel.backgroundColor = [UIColor clearColor];
@@ -550,20 +551,53 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
 }
 
 - (void)updateQuotaBanner {
-    NSString *message = [self quotaLimitMessage];
-    if (message.length == 0) {
-        [self.quotaBannerView hide];
-        if (self.tableView.tableHeaderView == self.quotaBannerView) {
-            self.tableView.tableHeaderView = nil;
-        }
+    if (!self.isSignedIn) {
+        [self hideQuotaBanner];
         return;
     }
 
+    MRQuotaTracker *quota = self.environment.quotaTracker;
+    NSError *syncError = self.syncEngine.lastSyncError;
+    if (syncError != nil &&
+        [MRError kindForError:syncError] == MRErrorKindCancelled) {
+        syncError = nil;
+    }
+
+    NSString *message = nil;
+    MRBannerStyle style = MRBannerStyleWarning;
+    NSString *retryTitle = nil;
+    if (quota != nil && quota.remaining == 0) {
+        message = [self quotaLimitMessage];
+        style = MRBannerStyleError;
+    } else if (syncError != nil) {
+        message = [MRErrorPresenter messageForError:syncError
+                                          resetDate:quota.resetAt];
+        style = [MRErrorPresenter styleForError:syncError];
+        if ([MRErrorPresenter showsRetryForError:syncError]) {
+            retryTitle = @"Retry";
+        }
+    }
+    if (message.length == 0) {
+        [self hideQuotaBanner];
+        return;
+    }
+
+    __weak MRLibraryViewController *weakSelf = self;
+    self.quotaBannerView.retryHandler = ^{
+        [weakSelf refreshPulled:weakSelf.refreshControl];
+    };
     [self.quotaBannerView showMessage:message
-                               style:MRBannerStyleError
-                          retryTitle:nil];
+                                style:style
+                           retryTitle:retryTitle];
     [self layoutQuotaBanner];
     self.tableView.tableHeaderView = self.quotaBannerView;
+}
+
+- (void)hideQuotaBanner {
+    [self.quotaBannerView hide];
+    if (self.tableView.tableHeaderView == self.quotaBannerView) {
+        self.tableView.tableHeaderView = nil;
+    }
 }
 
 - (void)layoutQuotaBanner {
@@ -653,6 +687,7 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     [self updateFilterControlsWithStore:store];
     [self updateFooter];
     [self updateSyncIndicator];
+    [self updateQuotaBanner];
     [self.tableView reloadData];
     [self.view setNeedsLayout];
 }

@@ -5,6 +5,8 @@
 #import "MRAppEnvironment.h"
 #import "MRClock.h"
 #import "MRDiagnostics.h"
+#import "MRError.h"
+#import "MRErrorPresenter.h"
 #import "MRImageCache.h"
 #import "MRKeychainTokenStore.h"
 #import "MRLibraryStore.h"
@@ -46,9 +48,38 @@
                                              selector:@selector(authDidChange:)
                                                  name:MRAuthDidChangeNotification
                                                object:self.environment.auth];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(authDidExpire:)
+                                                 name:MRAuthDidExpireNotification
+                                               object:self.environment.auth];
 
     [self bootstrapAccount];
     return YES;
+}
+
+- (void)applicationWillEnterForeground:(UIApplication *)application
+{
+    [self flushOutbox];
+    [self.environment.syncEngine noteForegroundAtDate:nil];
+}
+
+- (void)applicationDidReceiveMemoryWarning:(UIApplication *)application
+{
+    // Posters and decoded images are rebuildable; the disk cache and account
+    // data stay in place.
+    [self.environment.imageCache clearMemoryCache];
+}
+
+- (void)authDidExpire:(NSNotification *)notification
+{
+    NSError *error = [MRError errorWithKind:MRErrorKindAuthExpired];
+    NSString *message = [MRErrorPresenter messageForError:error resetDate:nil];
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Session Expired"
+                                                    message:message
+                                                   delegate:nil
+                                          cancelButtonTitle:@"OK"
+                                          otherButtonTitles:nil];
+    [alert show];
 }
 
 - (void)dealloc

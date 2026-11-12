@@ -37,6 +37,7 @@ void MRRunGenrePickerTests(void);
 void MRRunProfileStatsTests(void);
 void MRRunDiagnosticsReportTests(void);
 void MRRunSearchTests(void);
+void MRRunErrorPresenterTests(void);
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -132,6 +133,9 @@ int main(int argc, const char *argv[]) {
 
         MRTestBeginSuite(@"search");
         MRRunSearchTests();
+
+        MRTestBeginSuite(@"error presenter");
+        MRRunErrorPresenterTests();
 
         NSUInteger failures = MRTestFailureCount();
         if (failures == 0) {

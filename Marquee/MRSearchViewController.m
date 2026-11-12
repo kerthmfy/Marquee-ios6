@@ -12,6 +12,8 @@
 #import "MRConnectViewController.h"
 #import "MRDetailViewController.h"
 #import "MRError.h"
+#import "MRErrorPresenter.h"
+#import "MRQuotaTracker.h"
 #import "MRImageCache.h"
 #import "MRLayout.h"
 #import "MRLibraryStore.h"
@@ -551,6 +553,10 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
                selector:@selector(libraryDidChange:)
                    name:MRLibraryDidChangeNotification
                  object:nil];
+    [center addObserver:self
+               selector:@selector(applicationDidEnterBackground:)
+                   name:UIApplicationDidEnterBackgroundNotification
+                 object:nil];
 }
 
 - (void)dealloc {
@@ -687,6 +693,17 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     [self.searchTask cancel];
     self.searchTask = nil;
     self.loadingMore = NO;
+}
+
+- (void)applicationDidEnterBackground:(NSNotification *)notification {
+    [self cancelPendingWork];
+    [self.trendingTask cancel];
+    self.trendingTask = nil;
+    if (self.state == MRSearchContentStateSearching) {
+        self.state = self.results.count > 0 ? MRSearchContentStateResults
+                                            : MRSearchContentStateIdle;
+        [self.tableView reloadData];
+    }
 }
 
 #pragma mark - Search requests
@@ -875,18 +892,24 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     MRErrorKind kind = [MRError kindForError:error];
     NSString *message = kind == MRErrorKindOffline
         ? @"Search needs a connection."
-        : [MRError messageForKind:kind];
+        : [MRErrorPresenter messageForError:error
+                                  resetDate:self.environment.quotaTracker.resetAt];
     self.errorMessage = message;
     self.loadingMore = NO;
 
     if (append && self.results.count > 0) {
-        [self showBannerMessage:@"Couldn't load more. Tap Retry." style:MRBannerStyleWarning];
+        [self showBannerMessage:@"Couldn't load more. Tap Retry."
+                          style:MRBannerStyleWarning
+                     retryTitle:@"Retry"];
     } else {
         self.state = MRSearchContentStateError;
         self.results = @[];
         self.page = 0;
         self.canLoadMore = NO;
-        [self showBannerMessage:message style:MRBannerStyleError];
+        [self showBannerMessage:message
+                          style:[MRErrorPresenter styleForError:error]
+                     retryTitle:[MRErrorPresenter showsRetryForError:error]
+                         ? @"Retry" : nil];
     }
 
     [self.tableView reloadData];
@@ -1020,11 +1043,13 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
 
 #pragma mark - Banner and navigation
 
-- (void)showBannerMessage:(NSString *)message style:(MRBannerStyle)style {
+- (void)showBannerMessage:(NSString *)message
+                    style:(MRBannerStyle)style
+               retryTitle:(NSString *)retryTitle {
     self.bannerVisible = YES;
     __weak MRSearchViewController *weakSelf = self;
     self.bannerView.retryHandler = ^{ [weakSelf retryActiveSearch]; };
-    [self.bannerView showMessage:message style:style retryTitle:@"Retry"];
+    [self.bannerView showMessage:message style:style retryTitle:retryTitle];
     [self.view setNeedsLayout];
 }
 
@@ -1075,7 +1100,7 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
 #pragma mark - Footer
 
 - (void)buildFooter {
-    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 320.0, 48.0)];
+    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 0.0, 48.0)];
     footer.backgroundColor = [UIColor clearColor];
 
     UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];

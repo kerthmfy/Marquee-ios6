@@ -4,13 +4,7 @@
 //
 
 #import <UIKit/UIKit.h>
-
-typedef NS_ENUM(NSInteger, MRBannerStyle) {
-    MRBannerStyleNeutral = 0,
-    MRBannerStylePending,
-    MRBannerStyleWarning,
-    MRBannerStyleError
-};
+#import "MRBannerStyle.h"
 
 // A slim status banner shown below the navigation bar. It carries a short
 // message and an optional Retry button.

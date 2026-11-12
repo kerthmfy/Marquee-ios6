@@ -20,6 +20,7 @@
 #import "MRURLBuilder.h"
 
 NSString *const MRAuthDidChangeNotification = @"MRAuthDidChangeNotification";
+NSString *const MRAuthDidExpireNotification = @"MRAuthDidExpireNotification";
 
 static const NSTimeInterval MRAuthRefreshWindow = 5.0 * 60.0;
 static const NSTimeInterval MRAuthAccessTokenLifetime = 7.0 * 24.0 * 60.0 * 60.0;
@@ -518,8 +519,13 @@ static BOOL MRAuthErrorEndsSession(NSError *error) {
     [_refreshWaiters removeAllObjects];
 
     if (endSession) {
+        BOOL wasSignedIn = self.isSignedIn;
         [self.tokenStore clearSession:NULL];
         [self setSession:nil];
+        if (wasSignedIn) {
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:MRAuthDidExpireNotification object:self];
+        }
         [self postAuthChange];
     }
 
@@ -539,6 +545,8 @@ static BOOL MRAuthErrorEndsSession(NSError *error) {
 
     [self.tokenStore clearSession:NULL];
     [self setSession:nil];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:MRAuthDidExpireNotification object:self];
     [self postAuthChange];
 
     for (MRAuthTokenCompletion waiter in waiters) {

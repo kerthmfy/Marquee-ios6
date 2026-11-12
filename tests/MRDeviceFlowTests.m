@@ -535,6 +535,14 @@ static void MRAuthRefreshInvalidClientTest(void) {
                 usingBlock:^(NSNotification *note) {
         notifications += 1;
     }];
+    __block NSUInteger expirations = 0;
+    id expireObserver = [[NSNotificationCenter defaultCenter]
+        addObserverForName:MRAuthDidExpireNotification
+                    object:nil
+                     queue:nil
+                usingBlock:^(NSNotification *note) {
+        expirations += 1;
+    }];
 
     __block NSError *error = nil;
     [auth validAccessTokenWithCompletion:^(NSString *value, NSError *valueError) {
@@ -551,8 +559,11 @@ static void MRAuthRefreshInvalidClientTest(void) {
     MRAssertTrue([store loadSession:NULL] == nil, @"invalid client clears the token store");
     MRAssertEqualIntegers((NSInteger)notifications, 1,
                           @"invalid client posts exactly one auth-change notification");
+    MRAssertEqualIntegers((NSInteger)expirations, 1,
+                          @"invalid client posts one session-expiry notification");
 
     [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    [[NSNotificationCenter defaultCenter] removeObserver:expireObserver];
 }
 
 #pragma mark - Sign-in persistence and profile

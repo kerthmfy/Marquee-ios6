@@ -14,6 +14,7 @@
 #import "MRConnectViewController.h"
 #import "MRDetailViewController.h"
 #import "MRError.h"
+#import "MRErrorPresenter.h"
 #import "MRFeedSection.h"
 #import "MRGenreChoice.h"
 #import "MRGenrePickerViewController.h"
@@ -470,6 +471,8 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 @property (nonatomic, strong) MRPlaceholderView *retryView;
 @property (nonatomic, strong) MRBannerView *bannerView;
 @property (nonatomic, copy) NSString *refreshBannerMessage;
+@property (nonatomic, assign) MRBannerStyle refreshBannerStyle;
+@property (nonatomic, assign) BOOL refreshBannerShowsRetry;
 @property (nonatomic, assign) CGFloat lastLayoutWidth;
 @property (nonatomic, assign) BOOL observedWasSyncing;
 @property (nonatomic, copy) NSString *preferencesSignature;
@@ -809,13 +812,13 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
         if (sections.count > 0) {
             [strongSelf applySections:sections allowShortRows:NO];
             if (error != nil) {
-                [strongSelf showRefreshBannerWithMessage:@"Couldn't refresh recommendations"];
+                [strongSelf showErrorBanner:error];
             } else {
                 [strongSelf hideRefreshBanner];
             }
         } else if (strongSelf.sections.count > 0) {
             [strongSelf hideSkeleton];
-            [strongSelf showRefreshBannerWithMessage:@"Couldn't refresh recommendations"];
+            [strongSelf showErrorBanner:error];
             [strongSelf.tableView reloadData];
         } else {
             [strongSelf hideSkeleton];
@@ -867,9 +870,7 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
             }
         } else if (strongSelf.sections.count > 0) {
             [strongSelf hideSkeleton];
-            [strongSelf showRefreshBannerWithMessage:
-                strongSelf.isSignedIn ? @"Couldn't refresh recommendations"
-                                        : @"Couldn't refresh trending"];
+            [strongSelf showErrorBanner:error];
             [strongSelf.tableView reloadData];
         } else {
             [strongSelf showRetryState];
@@ -1017,6 +1018,21 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 
 - (void)showRefreshBannerWithMessage:(NSString *)message {
     self.refreshBannerMessage = message;
+    self.refreshBannerStyle = MRBannerStyleWarning;
+    self.refreshBannerShowsRetry = YES;
+    [self updateBannerDisplay];
+}
+
+- (void)showErrorBanner:(NSError *)error {
+    NSString *message = [MRErrorPresenter messageForError:error
+                                                resetDate:self.environment.quotaTracker.resetAt];
+    if (message.length == 0) {
+        [self hideRefreshBanner];
+        return;
+    }
+    self.refreshBannerMessage = message;
+    self.refreshBannerStyle = [MRErrorPresenter styleForError:error];
+    self.refreshBannerShowsRetry = [MRErrorPresenter showsRetryForError:error];
     [self updateBannerDisplay];
 }
 
@@ -1038,8 +1054,10 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 
     [self.bannerView showMessage:message
                           style:quotaMessage != nil ? MRBannerStyleError
-                                                    : MRBannerStyleWarning
-                     retryTitle:quotaMessage != nil ? nil : @"Retry"];
+                                                    : self.refreshBannerStyle
+                     retryTitle:quotaMessage != nil
+                         ? nil
+                         : (self.refreshBannerShowsRetry ? @"Retry" : nil)];
     self.bannerView.frame = CGRectMake(0.0, 0.0,
                                        CGRectGetWidth(self.tableView.bounds),
                                        [MRBannerView height]);

@@ -16,6 +16,10 @@
 // Posted whenever the signed-in state changes. object is the MRSimklAuth.
 extern NSString *const MRAuthDidChangeNotification;
 
+// Posted on the main thread when an expired session could not be refreshed and
+// the tokens were cleared. Local account data is intentionally kept.
+extern NSString *const MRAuthDidExpireNotification;
+
 // Owns the device flow, the Keychain session, token refresh serialization, and
 // the /users/settings identity lookup. Every state change and completion is
 // delivered on the main thread.
