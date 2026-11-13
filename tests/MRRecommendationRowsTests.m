@@ -546,7 +546,7 @@ void MRRunRecommendationRowsTests(void) {
                               (NSInteger)[(MRFeedSection *)[sections objectAtIndex:0] kind],
                               @"a two-item source can still supply the hero");
         MRFeedSection *empty = [sections objectAtIndex:1];
-        MRAssertEqualObjects(@"Find something on Simkl", empty.title,
+        MRAssertEqualObjects(@"Find something to watch", empty.title,
                              @"the empty card names the search action");
         MRAssertEqualIntegers(MRFeedSourceEmptyState, empty.source,
                               @"the card uses the empty-state source");
@@ -577,7 +577,7 @@ void MRRunRecommendationRowsTests(void) {
         NSArray *sections = MRRunRowsGeneration(engine, NULL);
         MRAssertEqualIntegers(1, (NSInteger)sections.count,
                               @"an empty page contains only the empty card");
-        MRAssertEqualObjects(@"Find something on Simkl",
+        MRAssertEqualObjects(@"Find something to watch",
                              [[sections objectAtIndex:0] title],
                              @"the empty page names the search action");
         [[NSFileManager defaultManager] removeItemAtPath:root error:NULL];
