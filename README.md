@@ -6,7 +6,7 @@ Objective-C with ARC and talks directly to the SimKL API.
 ## Platform support
 
 - iOS 6.0 or later, armv7.
-- 
+  
 ## Build
 
 Prerequisites:
