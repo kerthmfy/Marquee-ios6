@@ -851,9 +851,9 @@ static MRFeedSection *MRRecommendationRow(MRFeedSource source,
     if (nonHero == 0) {
         MRFeedSection *empty =
             [MRFeedSection rowSectionWithSource:MRFeedSourceEmptyState
-                                          title:@"Find something on Simkl"
+                                          title:@"Find something to watch"
                                           items:@[]];
-        empty.subtitle = @"Search Simkl for something new.";
+        empty.subtitle = @"Search Simkl to start your library.";
         [sections addObject:empty];
     }
     return sections;
@@ -944,9 +944,9 @@ static MRFeedSection *MRRecommendationRow(MRFeedSource source,
     if (sections.count == 1) {
         MRFeedSection *empty =
             [MRFeedSection rowSectionWithSource:MRFeedSourceEmptyState
-                                          title:@"Find something on Simkl"
+                                          title:@"Find something to watch"
                                           items:@[]];
-        empty.subtitle = @"Search Simkl for something new.";
+        empty.subtitle = @"Search Simkl to start your library.";
         [sections addObject:empty];
     }
     return sections;

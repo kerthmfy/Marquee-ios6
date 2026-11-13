@@ -99,6 +99,30 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
     return progress;
 }
 
+static NSString *MRForYouHeroMetadata(MRMediaItem *item) {
+    if (item == nil) {
+        return @"";
+    }
+    NSMutableArray *parts = [NSMutableArray array];
+    if (item.year > 0) {
+        [parts addObject:[NSString stringWithFormat:@"%ld", (long)item.year]];
+    }
+    [parts addObject:MRMediaTypeDisplayName(item.type)];
+
+    NSUInteger genreCount = 0;
+    for (id genre in item.genres) {
+        if (![genre isKindOfClass:[NSString class]] || [genre length] == 0) {
+            continue;
+        }
+        [parts addObject:genre];
+        genreCount += 1;
+        if (genreCount >= 2) {
+            break;
+        }
+    }
+    return [parts componentsJoinedByString:@" · "];
+}
+
 #pragma mark - Skeleton
 
 @interface MRForYouSkeletonView : UIView
@@ -205,7 +229,11 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 @property (nonatomic, strong) MRHeroView *heroView;
 - (void)configureWithTitle:(NSString *)title
                   subtitle:(NSString *)subtitle
+                   eyebrow:(NSString *)eyebrow
+                  metadata:(NSString *)metadata
                buttonTitle:(NSString *)buttonTitle
+                      item:(MRMediaItem *)item
+                imageCache:(MRImageCache *)imageCache
                    handler:(void (^)(void))handler;
 @end
 
@@ -226,12 +254,26 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
 
 - (void)configureWithTitle:(NSString *)title
                   subtitle:(NSString *)subtitle
+                   eyebrow:(NSString *)eyebrow
+                  metadata:(NSString *)metadata
                buttonTitle:(NSString *)buttonTitle
+                      item:(MRMediaItem *)item
+                imageCache:(MRImageCache *)imageCache
                    handler:(void (^)(void))handler {
     self.heroView.actionHandler = handler;
     [self.heroView configureWithTitle:title
                              subtitle:subtitle
+                              eyebrow:eyebrow
+                             metadata:metadata
                           buttonTitle:buttonTitle];
+    [self.heroView setArtworkFanartPath:item.fanart
+                             posterPath:item.poster
+                             imageCache:imageCache];
+}
+
+- (void)prepareForReuse {
+    [super prepareForReuse];
+    [self.heroView cancelArtwork];
 }
 
 - (void)layoutSubviews {
@@ -1275,9 +1317,9 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
     if (self.sections.count == 0) {
         MRFeedSection *empty =
             [MRFeedSection rowSectionWithSource:MRFeedSourceEmptyState
-                                          title:@"Find something on Simkl"
+                                          title:@"Find something to watch"
                                           items:@[]];
-        empty.subtitle = @"Search Simkl for something new.";
+        empty.subtitle = @"Search Simkl to start your library.";
         self.sections = @[ empty ];
     }
     [self.tableView reloadData];
@@ -1337,22 +1379,29 @@ static CGFloat MRForYouContinueProgress(MRMediaItem *item) {
         __weak MRForYouViewController *weakSelf = self;
         void (^handler)(void) = nil;
         NSString *buttonTitle = nil;
+        NSString *eyebrow = @"TOP PICK FOR YOU";
         MRMediaItem *heroItem =
             section.items.count > 0 ? [section.items objectAtIndex:0] : nil;
         if (section.source == MRFeedSourceConnect) {
+            eyebrow = @"WELCOME TO MARQUEE";
             buttonTitle = @"Sign In";
             handler = ^{ [weakSelf showConnect]; };
         } else if (section.source == MRFeedSourceGenrePicker) {
+            eyebrow = @"MAKE IT YOURS";
             buttonTitle = @"Pick Genres";
             handler = ^{ [weakSelf openGenrePicker]; };
         } else if (heroItem != nil) {
-            buttonTitle = @"Details";
+            buttonTitle = @"View Details";
             handler = ^{ [weakSelf openDetailForItem:heroItem]; };
         }
 
         [cell configureWithTitle:section.title
                         subtitle:section.subtitle
+                         eyebrow:eyebrow
+                        metadata:MRForYouHeroMetadata(heroItem)
                      buttonTitle:buttonTitle
+                            item:heroItem
+                      imageCache:self.imageCache
                          handler:handler];
         return cell;
     }
