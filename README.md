@@ -6,8 +6,7 @@ Objective-C with ARC and talks directly to the SimKL API.
 ## Platform support
 
 - iOS 6.0 or later, armv7.
-- Free SimKL accounts only. Marquee does not use PRO/VIP-only endpoints.
-
+- 
 ## Build
 
 Prerequisites:
