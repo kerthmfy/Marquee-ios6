@@ -161,7 +161,8 @@ static const CGFloat MRChipHeightTablet = 32.0;
             @(MRWatchStatusPlanToWatch), @(MRWatchStatusCompleted),
             @(MRWatchStatusHold), @(MRWatchStatusDropped)
         ];
-        NSArray *titles = @[ @"All", @"Watching", @"Plan", @"Completed", @"Hold", @"Dropped" ];
+        NSArray *titles = @[ @"All", @"Watching", @"Plan to Watch", @"Completed",
+                             @"Hold", @"Dropped" ];
         for (NSUInteger index = 0; index < statuses.count; index++) {
             MRStatusChipButton *chip =
                 [[MRStatusChipButton alloc] initWithFrame:CGRectZero];

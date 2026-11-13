@@ -847,9 +847,9 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     } else {
         NSDate *date = engine.lastSyncAt != nil ? engine.lastSyncAt : store.lastSyncAt;
         if (date != nil) {
-            text = [self updatedTextForDate:date];
+            text = [self syncedTextForDate:date];
         } else {
-            text = @"Not synced yet";
+            text = @"Waiting for first sync";
         }
     }
 
@@ -858,30 +858,30 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     [self layoutFooter];
 }
 
-- (NSString *)updatedTextForDate:(NSDate *)date {
+- (NSString *)syncedTextForDate:(NSDate *)date {
     NSTimeInterval interval = [[NSDate date] timeIntervalSinceDate:date];
     if (interval < 0.0) {
         interval = 0.0;
     }
     if (interval < 60.0) {
-        return @"Updated just now";
+        return @"Synced just now";
     }
     if (interval < 3600.0) {
-        return [NSString stringWithFormat:@"Updated %ldm ago",
+        return [NSString stringWithFormat:@"Synced %ldm ago",
                 (long)(interval / 60.0)];
     }
     if (interval < 86400.0) {
-        return [NSString stringWithFormat:@"Updated %ldh ago",
+        return [NSString stringWithFormat:@"Synced %ldh ago",
                 (long)(interval / 3600.0)];
     }
     if (interval < 7.0 * 86400.0) {
-        return [NSString stringWithFormat:@"Updated %ldd ago",
+        return [NSString stringWithFormat:@"Synced %ldd ago",
                 (long)(interval / 86400.0)];
     }
 
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
     [formatter setDateFormat:@"MMM d"];
-    return [NSString stringWithFormat:@"Updated %@", [formatter stringFromDate:date]];
+    return [NSString stringWithFormat:@"Synced %@", [formatter stringFromDate:date]];
 }
 
 #pragma mark - State actions
