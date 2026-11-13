@@ -1,7 +1,6 @@
 # Marquee - Simkl client for iOS 6
 
-Marquee is a standalone, native SimKL client for iOS 6. It is written in
-Objective-C with ARC and talks directly to the SimKL API.
+Marquee is a standalone, native SimKL client for iOS 6.
 
 <p align="center">
   <img src="screenshots/attachment-2.png" width="220" alt="first bar">
