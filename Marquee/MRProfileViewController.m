@@ -57,15 +57,15 @@ static CGFloat MRProfileSideInset(void) {
 static NSString *MRProfileAccountTypeText(MRUserProfile *profile) {
     NSString *type = [[profile.accountType lowercaseString] copy];
     if ([type isEqualToString:@"pro"]) {
-        return @"PRO account";
+        return @"Simkl PRO";
     }
     if ([type isEqualToString:@"vip"]) {
-        return @"VIP account";
+        return @"Simkl VIP";
     }
     if ([type isEqualToString:@"free"]) {
-        return @"Free account";
+        return @"Simkl Free";
     }
-    return type.length > 0 ? [type capitalizedString] : @"Simkl account";
+    return @"Simkl account";
 }
 
 static NSString *MRProfileInitials(NSString *name) {
@@ -396,8 +396,8 @@ static NSString *MRProfileVersionText(void) {
 
         NSMutableArray *values = [NSMutableArray array];
         NSMutableArray *captions = [NSMutableArray array];
-        NSArray *captionsText = @[ @"Movies", @"TV", @"Anime",
-                                   @"Episodes", @"Ratings", @"Watchlist" ];
+        NSArray *captionsText = @[ @"Movies", @"TV Shows", @"Anime",
+                                   @"Episodes", @"Ratings", @"Plan to Watch" ];
         for (NSString *caption in captionsText) {
             UILabel *value = [[UILabel alloc] initWithFrame:CGRectZero];
             value.backgroundColor = [UIColor clearColor];
@@ -1060,8 +1060,8 @@ static NSString *MRProfileVersionText(void) {
         if (indexPath.row == 0) {
             NSUInteger count = preferences.manualGenres.count;
             NSString *detail = count > 0
-                ? [NSString stringWithFormat:@"%lu of 5", (unsigned long)count]
-                : @"None";
+                ? [NSString stringWithFormat:@"%lu selected", (unsigned long)count]
+                : @"None selected";
             [cell configureWithTitle:@"Favorite Genres"
                              detail:detail
                         destructive:NO
@@ -1069,8 +1069,8 @@ static NSString *MRProfileVersionText(void) {
         } else if (indexPath.row == 1) {
             NSUInteger count = preferences.hiddenTitles.count;
             NSString *detail = count > 0
-                ? [NSString stringWithFormat:@"%lu", (unsigned long)count]
-                : @"None";
+                ? [NSString stringWithFormat:@"%lu hidden", (unsigned long)count]
+                : @"None hidden";
             [cell configureWithTitle:@"Hidden Titles"
                              detail:detail
                         destructive:NO
@@ -1086,15 +1086,15 @@ static NSString *MRProfileVersionText(void) {
 
     if (kind == MRProfileSectionAbout) {
         if (indexPath.row == 0) {
-            [cell configureWithTitle:@"View on Simkl"
+            [cell configureWithTitle:@"Connected Apps"
                              detail:nil
                         destructive:NO
                            showsMore:YES];
         } else if (indexPath.row == 1) {
-            [cell configureWithTitle:@"Data from Simkl"
-                             detail:@"Simkl"
+            [cell configureWithTitle:@"Simkl Website"
+                             detail:nil
                         destructive:NO
-                           showsMore:NO];
+                           showsMore:YES];
         } else if (indexPath.row == 2) {
             [cell configureWithTitle:@"Version"
                              detail:MRProfileVersionText()
@@ -1154,11 +1154,11 @@ static NSString *MRProfileVersionText(void) {
 - (NSString *)titleForSection:(NSInteger)section {
     switch ([self sectionKindAtIndex:section]) {
         case MRProfileSectionStats:
-            return @"Stats";
+            return @"Your Library";
         case MRProfileSectionSync:
-            return @"Sync";
+            return @"Sync Status";
         case MRProfileSectionForYou:
-            return @"For You";
+            return @"Recommendations";
         case MRProfileSectionAbout:
             return @"About";
         default:
