@@ -243,6 +243,57 @@ static void MRRunDeltaGateMatchTest(void) {
                           @"an unchanged gate does not bump the generation");
     MRAssertEqualObjects(saved, store.activities,
                          @"an unchanged gate keeps the activities snapshot");
+    MRAssertEqualObjects(clock.now, engine.lastSyncAt,
+                         @"an unchanged gate stamps the engine sync time");
+
+    MRLibraryStore *reloaded = MRDeltaStore(root);
+    NSError *reloadError = nil;
+    MRAssertTrue([reloaded load:&reloadError],
+                 @"the snapshot still loads after an unchanged gate");
+    MRAssertTrue(reloadError == nil,
+                 @"an unchanged gate leaves a loadable snapshot");
+    MRAssertEqualObjects(clock.now, reloaded.lastSyncAt,
+                         @"an unchanged gate persists lastSyncAt");
+
+    MRDeltaRemoveRoot(root);
+}
+
+static void MRRunDeltaEmptyResponsesTest(void) {
+    NSString *root = MRDeltaTestRoot();
+    NSDictionary *saved = MRFixture(@"activities-saved");
+    MRLibraryStore *store = MRDeltaStoreWithSnapshot(root,
+        @[ MRDeltaMovie(888, 3) ], saved);
+    NSInteger generation = store.generation;
+
+    NSMutableDictionary *current =
+        [NSMutableDictionary dictionaryWithDictionary:saved];
+    current[@"all"] = @"2026-11-04T13:00:00Z";
+    NSMutableDictionary *movies =
+        [NSMutableDictionary dictionaryWithDictionary:[saved objectForKey:@"movies"]];
+    movies[@"all"] = @"2026-11-04T13:00:00Z";
+    movies[@"rated_at"] = @"2026-11-04T13:00:00Z";
+    current[@"movies"] = movies;
+
+    MRDeltaProvider *provider = [[MRDeltaProvider alloc] init];
+    [provider enqueueJSON:current];
+    [provider enqueueJSON:@{}];
+    [provider enqueueJSON:@{}];
+    MRFakeClock *clock = [[MRFakeClock alloc] init];
+    MRSyncEngine *engine = MRDeltaEngine(provider, store, clock);
+
+    NSError *error = MRDeltaSync(engine);
+    MRAssertTrue(error == nil, @"empty delta responses are not parse failures");
+    MRAssertEqualIntegers(3, (NSInteger)provider.calls.count,
+                          @"an empty delta still makes the items and ratings calls");
+    MRMediaItem *movie = [store itemForType:MRMediaTypeMovie simklID:888];
+    MRAssertEqualIntegers(3, movie.userRating,
+                          @"an empty ratings delta keeps the existing rating");
+    MRAssertEqualObjects(current, store.activities,
+                         @"an empty delta saves the new activities");
+    MRAssertEqualIntegers(generation + 1, store.generation,
+                          @"an empty delta increments the generation");
+    MRAssertEqualObjects(clock.now, engine.lastSyncAt,
+                         @"an empty delta stamps the sync time");
 
     MRDeltaRemoveRoot(root);
 }
@@ -547,6 +598,7 @@ static void MRRunPendingCountTest(void) {
 
 void MRRunSyncDeltaTests(void) {
     MRRunDeltaGateMatchTest();
+    MRRunDeltaEmptyResponsesTest();
     MRRunDeltaMovedDomainsTest();
     MRRunDeltaNullRatingTest();
     MRRunDeltaFailureKeepsSnapshotTest();

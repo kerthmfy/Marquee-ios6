@@ -555,6 +555,38 @@ static NSDate *MRLibraryDateValue(id value) {
     return YES;
 }
 
+- (BOOL)updateLastSyncAt:(NSDate *)date error:(NSError **)error {
+    if (date == nil) {
+        if (error != NULL) {
+            *error = [MRError errorWithKind:MRErrorKindUnknown];
+        }
+        return NO;
+    }
+
+    if (!self.hasSnapshot) {
+        self.lastSyncAt = date;
+        if (error != NULL) {
+            *error = nil;
+        }
+        return YES;
+    }
+
+    NSDate *now = [NSDate date];
+    if (![self storeStateWithGeneration:self.generation
+                                savedAt:now
+                             activities:self.activities
+                                profile:self.profile
+                             lastSyncAt:date
+                         lastFullSyncAt:self.lastFullSyncAt
+                                  error:error]) {
+        return NO;
+    }
+    self.lastSyncAt = date;
+    self.savedAt = now;
+    MRLibraryPostChange();
+    return YES;
+}
+
 #pragma mark - Reads
 
 - (MRMediaItem *)itemForType:(MRMediaType)type simklID:(NSInteger)simklID {

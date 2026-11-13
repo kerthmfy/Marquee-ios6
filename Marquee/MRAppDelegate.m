@@ -215,8 +215,8 @@
     self.environment.storage = storage;
 
     MRLibraryStore *store = [[MRLibraryStore alloc] initWithStorage:storage];
-    NSError *loadError = nil;
-    BOOL loaded = [store load:&loadError];
+    // Render cached data immediately; the launch sync below refreshes it.
+    [store load:NULL];
     self.environment.libraryStore = store;
 
     MRPreferencesStore *preferences = [[MRPreferencesStore alloc] initWithStorage:storage];
@@ -246,7 +246,9 @@
                                      libraryStore:store
                                            clock:self.clock];
 
-    if (!loaded && self.environment.auth.isSignedIn) {
+    if (self.environment.auth.isSignedIn) {
+        // A launch sync also retries a pass that was killed mid-flight. The
+        // foreground throttle still prevents duplicate passes on resume.
         [engine syncWithCompletion:^(NSError *error) {
             // The For You header observes MRSyncStatusDidChangeNotification.
         }];

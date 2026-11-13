@@ -60,6 +60,10 @@ typedef NS_ENUM(NSInteger, MRLibraryStoreErrorCode) {
 // Saves a refreshed profile without touching the library or generation.
 - (BOOL)updateProfile:(MRUserProfile *)profile error:(NSError **)error;
 
+// Stamps lastSyncAt after a successful sync that found no changes. Does not
+// touch the library or increment the generation.
+- (BOOL)updateLastSyncAt:(NSDate *)date error:(NSError **)error;
+
 - (MRMediaItem *)itemForType:(MRMediaType)type simklID:(NSInteger)simklID;
 - (NSArray *)itemsForType:(MRMediaType)type status:(MRWatchStatus)status;
 - (NSDictionary *)countsByStatusForType:(MRMediaType)type;

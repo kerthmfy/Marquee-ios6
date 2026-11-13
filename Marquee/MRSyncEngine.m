@@ -504,7 +504,15 @@ static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
     }
 
     if ([currentAll isEqualToString:savedAll]) {
-        self.lastSyncAt = [self.clock now];
+        NSDate *now = [self.clock now];
+        NSError *saveError = nil;
+        if (![self.libraryStore updateLastSyncAt:now error:&saveError]) {
+            [self finishWithError:saveError != nil
+                                     ? saveError
+                                     : [MRError errorWithKind:MRErrorKindUnknown]];
+            return;
+        }
+        self.lastSyncAt = now;
         [self finishWithError:nil];
         return;
     }
@@ -752,6 +760,14 @@ static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
             completion(error);
             return;
         }
+        // Simkl returns an empty object when a delta has no changed items.
+        // That is a valid no-op, not a parse failure.
+        if (json.count == 0) {
+            [strongSelf fetchPhase2ItemsForDomains:domains
+                                             index:index + 1
+                                        completion:completion];
+            return;
+        }
         NSError *parseError = nil;
         NSArray *items = [strongSelf itemsFromJSON:json type:type error:&parseError];
         if (items == nil) {
@@ -772,6 +788,10 @@ static BOOL MRSyncActivitiesAreComplete(NSDictionary *activities) {
     if ([json isKindOfClass:[NSArray class]]) {
         entries = json;
     } else if ([json isKindOfClass:[NSDictionary class]]) {
+        // An empty object means no rating changes in this delta.
+        if (json.count == 0) {
+            return YES;
+        }
         entries = [json objectForKey:MRSyncTypeKey(type)];
     }
     if (![entries isKindOfClass:[NSArray class]]) {
