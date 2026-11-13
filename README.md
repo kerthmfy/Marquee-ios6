@@ -40,18 +40,6 @@ The device flow shows a code and opens `simkl.com/pin` for approval. Tokens are
 stored in the Keychain; account data and the write outbox are stored as JSON
 files under the app's Library directory.
 
-## Images
-
-iOS 6 cannot decode the WebP posters served by SimKL. Marquee requests every
-poster and fanart image through `wsrv.nl` with `output=jpg`; do not remove that
-parameter or request WebP directly.
-
-## Write testing
-
-All write checks use sacrificial titles on the real account. Before testing a
-status, history, rating, or remove action, choose a title that can be changed
-back, and restore the account to its baseline afterward. Pending writes are
-persisted in `outbox.json` and resume only for the same SimKL account.
 
 ## Known limitations.. but will try to implement and have a workaround
 
