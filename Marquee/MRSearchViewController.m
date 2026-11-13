@@ -453,6 +453,8 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) MRBannerView *bannerView;
 @property (nonatomic, strong) MRPlaceholderView *connectView;
+@property (nonatomic, strong) UIView *attributionBar;
+@property (nonatomic, strong) UIView *attributionSeparator;
 @property (nonatomic, strong) UIButton *footerButton;
 @property (nonatomic, strong) UIImageView *footerBadge;
 
@@ -507,7 +509,7 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
 
     UISearchBar *searchBar = [[UISearchBar alloc] initWithFrame:CGRectZero];
     searchBar.delegate = self;
-    searchBar.placeholder = @"Movies, TV, anime";
+    searchBar.placeholder = @"Movies, TV shows, anime";
     searchBar.autocapitalizationType = UITextAutocapitalizationTypeNone;
     searchBar.autocorrectionType = UITextAutocorrectionTypeNo;
     searchBar.showsCancelButton = NO;
@@ -538,7 +540,7 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     [self.view addSubview:connect];
     self.connectView = connect;
 
-    [self buildFooter];
+    [self buildAttributionBar];
 
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
     [center addObserver:self
@@ -581,6 +583,7 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
         self.searchBar.hidden = YES;
         self.tableView.hidden = YES;
         self.bannerView.hidden = YES;
+        self.attributionBar.hidden = YES;
         CGFloat connectWidth = MIN(300.0, MAX(0.0, width - 32.0));
         self.connectView.frame = CGRectMake((width - connectWidth) / 2.0,
                                             (height - 160.0) / 2.0,
@@ -592,14 +595,18 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     self.searchBar.hidden = NO;
     self.tableView.hidden = NO;
     self.connectView.hidden = YES;
+    self.attributionBar.hidden = NO;
     self.searchBar.frame = CGRectMake(0.0, top, width, 44.0);
     top += 44.0;
     if (self.bannerVisible) {
         self.bannerView.frame = CGRectMake(0.0, top, width, [MRBannerView height]);
         top += [MRBannerView height];
     }
-    self.tableView.frame = CGRectMake(0.0, top, width, MAX(0.0, height - top));
-    [self layoutFooter];
+    CGFloat barHeight = 30.0;
+    CGFloat tableBottom = MAX(top, height - barHeight);
+    self.tableView.frame = CGRectMake(0.0, top, width,
+                                      MAX(0.0, tableBottom - top));
+    [self layoutAttributionBar];
 }
 
 #pragma mark - Dependencies
@@ -1097,52 +1104,60 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     [self.navigationController pushViewController:detail animated:YES];
 }
 
-#pragma mark - Footer
+#pragma mark - Attribution
 
-- (void)buildFooter {
-    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 0.0, 48.0)];
-    footer.backgroundColor = [UIColor clearColor];
+- (void)buildAttributionBar {
+    UIView *bar = [[UIView alloc] initWithFrame:CGRectZero];
+    bar.backgroundColor = [MRAppearance paper];
+    bar.hidden = YES;
+    [self.view addSubview:bar];
+    self.attributionBar = bar;
+
+    UIView *separator = [[UIView alloc] initWithFrame:CGRectZero];
+    separator.backgroundColor = [MRAppearance sep];
+    [bar addSubview:separator];
+    self.attributionSeparator = separator;
 
     UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
     button.backgroundColor = [UIColor clearColor];
     button.titleLabel.font = [MRAppearance smallFont];
     [button setTitleColor:[MRAppearance link] forState:UIControlStateNormal];
     [button setTitleColor:[MRAppearance muted] forState:UIControlStateHighlighted];
-    [button setTitle:@"Search powered by Simkl" forState:UIControlStateNormal];
+    [button setTitle:@"Powered by Simkl" forState:UIControlStateNormal];
     [button addTarget:self
                action:@selector(simklFooterTapped:)
      forControlEvents:UIControlEventTouchUpInside];
-    [footer addSubview:button];
+    [bar addSubview:button];
     self.footerButton = button;
 
     UIImageView *badge = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"SimklBadge.png"]];
     badge.backgroundColor = [UIColor clearColor];
     badge.contentMode = UIViewContentModeScaleAspectFit;
-    [footer addSubview:badge];
+    [bar addSubview:badge];
     self.footerBadge = badge;
-
-    self.tableView.tableFooterView = footer;
 }
 
-- (void)layoutFooter {
-    UIView *footer = self.tableView.tableFooterView;
-    if (footer == nil) {
+- (void)layoutAttributionBar {
+    if (self.attributionBar == nil) {
         return;
     }
-    CGFloat width = CGRectGetWidth(self.tableView.bounds);
-    CGRect footerFrame = footer.frame;
-    if (CGRectGetWidth(footerFrame) != width) {
-        footerFrame.size.width = width;
-        footer.frame = footerFrame;
-    }
 
-    CGSize textSize = [@"Search powered by Simkl" sizeWithFont:self.footerButton.titleLabel.font];
-    CGFloat badgeSide = 22.0;
+    CGFloat width = CGRectGetWidth(self.view.bounds);
+    CGFloat height = CGRectGetHeight(self.view.bounds);
+    CGFloat barHeight = 30.0;
+    CGFloat barY = MAX(0.0, height - barHeight);
+    self.attributionBar.frame = CGRectMake(0.0, barY, width, barHeight);
+    self.attributionSeparator.frame = CGRectMake(0.0, 0.0, width, 1.0);
+
+    CGSize textSize = [@"Powered by Simkl" sizeWithFont:self.footerButton.titleLabel.font];
+    CGFloat badgeSide = 18.0;
     CGFloat gap = 6.0;
     CGFloat totalWidth = textSize.width + gap + badgeSide;
-    CGFloat startX = MAX(0.0, (width - totalWidth) / 2.0);
-    self.footerButton.frame = CGRectMake(startX, 13.0, textSize.width, 22.0);
-    self.footerBadge.frame = CGRectMake(startX + textSize.width + gap, 13.0,
+    CGFloat startX = MAX(0.0, ((width - totalWidth) / 2.0));
+    self.footerButton.frame = CGRectMake(startX, floor((barHeight - 20.0) / 2.0),
+                                         textSize.width, 20.0);
+    self.footerBadge.frame = CGRectMake(startX + textSize.width + gap,
+                                        floor((barHeight - badgeSide) / 2.0),
                                         badgeSide, badgeSide);
 }
 
@@ -1225,7 +1240,7 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
 
         if (indexPath.section == 0) {
             [cell configureWithTitle:@"Try Dune, The Bear, or Frieren"
-                            subtitle:@"Search your whole Simkl catalog."
+                            subtitle:@"Search movies, TV shows, and anime."
                          showsChevron:NO];
             return cell;
         }
