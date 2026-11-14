@@ -19,6 +19,7 @@
 + (NSString *)searchURLWithQuery:(NSString *)query page:(NSUInteger)page;
 + (NSString *)posterURLForPath:(NSString *)path size:(NSString *)size;
 + (NSString *)fanartURLForPath:(NSString *)path size:(NSString *)size;
++ (NSString *)episodeURLForPath:(NSString *)path size:(NSString *)size;
 + (NSString *)posterPlaceholderURL;
 + (NSString *)avatarURLForPath:(NSString *)path;
 + (NSString *)simklWebURLForType:(MRMediaType)type simklID:(NSInteger)simklID slug:(NSString *)slug;
