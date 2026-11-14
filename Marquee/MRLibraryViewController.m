@@ -521,7 +521,9 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     CGFloat width = CGRectGetWidth(self.tableView.bounds);
     CGFloat inset = [MRLayout rowSideInsetForDeviceClass:device];
     CGFloat maxContent = MIN(width, [MRLayout contentMaxWidthForDeviceClass:device]);
-    self.footerView.frame = CGRectMake(0.0, 0.0, width, 44.0);
+    CGRect footerFrame = self.footerView.frame;
+    footerFrame.size = CGSizeMake(width, 44.0);
+    self.footerView.frame = footerFrame;
     self.footerLabel.frame = CGRectMake((width - maxContent) / 2.0 + inset, 12.0,
                                         MAX(0.0, maxContent - inset * 2.0), 20.0);
 }
