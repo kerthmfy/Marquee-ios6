@@ -127,6 +127,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
         self.clipsToBounds = YES;
 
         _posterView = [[MRPosterImageView alloc] initWithImageCache:nil];
+        _posterView.backgroundColor = [UIColor colorWithWhite:0.08 alpha:1.0];
         _posterView.contentMode = UIViewContentModeScaleAspectFill;
         [self addSubview:_posterView];
 
@@ -190,10 +191,14 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
 - (void)configureWithItem:(MRMediaItem *)item imageCache:(MRImageCache *)imageCache {
     [self.posterView setImageCache:imageCache];
-    if (item.fanart.length > 0) {
-        [self.posterView setImagePath:item.fanart size:@"_medium"];
-    } else if (item.poster.length > 0) {
-        [self.posterView setImagePath:item.poster size:@"_w"];
+    if (item.poster.length > 0) {
+        self.posterView.contentMode = UIViewContentModeScaleAspectFill;
+        [self.posterView setImageURL:
+            [MRURLBuilder posterURLForPath:item.poster size:@"_w"]];
+    } else if (item.fanart.length > 0) {
+        self.posterView.contentMode = UIViewContentModeScaleAspectFill;
+        [self.posterView setImageURL:
+            [MRURLBuilder fanartURLForPath:item.fanart size:@"_medium"]];
     } else {
         [self.posterView setImageURL:nil];
     }
