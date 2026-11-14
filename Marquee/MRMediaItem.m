@@ -99,6 +99,8 @@ static NSDictionary *MRExternalIDs(id value) {
         _overview = @"";
         _network = @"";
         _country = @"";
+        _certification = @"";
+        _director = @"";
         _releaseDate = @"";
         _airStatus = @"";
         _lastWatched = @"";
@@ -125,6 +127,8 @@ static NSDictionary *MRExternalIDs(id value) {
     self.watchedCount = MRIntegerValue(entry[@"watched"]);
     self.ratings = MRDictionaryValue(entry[@"ratings"]);
     self.externalIDs = MRExternalIDs(ids);
+    self.certification = MRStringValue(entry[@"certification"]);
+    self.director = MRStringValue(entry[@"director"]);
 }
 
 + (instancetype)itemWithSyncDictionary:(NSDictionary *)dictionary
@@ -290,6 +294,15 @@ static NSDictionary *MRExternalIDs(id value) {
         merged.country = country;
     }
 
+    NSString *certification = MRNullableStringValue(entry[@"certification"]);
+    if (certification.length > 0) {
+        merged.certification = certification;
+    }
+    NSString *director = MRNullableStringValue(entry[@"director"]);
+    if (director.length > 0) {
+        merged.director = director;
+    }
+
     NSString *releaseDate = MRNullableStringValue(entry[@"first_aired"]);
     if (releaseDate.length == 0) {
         releaseDate = MRNullableStringValue(entry[@"released"]);
@@ -334,6 +347,8 @@ static NSDictionary *MRExternalIDs(id value) {
     item.overview = MRStringValue(entry[@"overview"]);
     item.network = MRStringValue(entry[@"network"]);
     item.country = MRStringValue(entry[@"country"]);
+    item.certification = MRStringValue(entry[@"certification"]);
+    item.director = MRStringValue(entry[@"director"]);
     item.releaseDate = MRStringValue(entry[@"releaseDate"]);
     item.airStatus = MRStringValue(entry[@"airStatus"]);
 
@@ -373,6 +388,8 @@ static NSDictionary *MRExternalIDs(id value) {
     dictionary[@"overview"] = self.overview ?: @"";
     dictionary[@"network"] = self.network ?: @"";
     dictionary[@"country"] = self.country ?: @"";
+    dictionary[@"certification"] = self.certification ?: @"";
+    dictionary[@"director"] = self.director ?: @"";
     dictionary[@"releaseDate"] = self.releaseDate ?: @"";
     dictionary[@"airStatus"] = self.airStatus ?: @"";
 
@@ -436,6 +453,8 @@ static NSDictionary *MRExternalIDs(id value) {
     copy.overview = self.overview;
     copy.network = self.network;
     copy.country = self.country;
+    copy.certification = self.certification;
+    copy.director = self.director;
     copy.releaseDate = self.releaseDate;
     copy.airStatus = self.airStatus;
 

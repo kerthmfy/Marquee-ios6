@@ -11,6 +11,7 @@
 #import "MRTabBarChromeView.h"
 
 #import <math.h>
+#import <QuartzCore/QuartzCore.h>
 
 static const CGFloat MRTabBarHeight = 49.0;
 static const CGFloat MRNavigationBarHeight = 44.0;
@@ -831,6 +832,18 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     background.last = last;
     [background setNeedsDisplay];
     view.backgroundColor = [UIColor clearColor];
+}
+
++ (void)stylePosterThumbnailView:(UIView *)view
+{
+    if (!view) {
+        return;
+    }
+
+    view.layer.cornerRadius = 4.0;
+    view.layer.masksToBounds = YES;
+    view.layer.borderWidth = 0.5;
+    view.layer.borderColor = [UIColor colorWithWhite:0.0 alpha:0.18].CGColor;
 }
 
 + (UIView *)sectionHeaderViewWithTitle:(NSString *)title

@@ -85,6 +85,30 @@ void MRRunMediaItemTests(void) {
     MRAssertEqualObjects(detail.externalIDs[@"imdb"], @"tt0816692", @"detail imdb id");
     MRAssertEqualObjects(detail.ratings[@"simkl"][@"rating"], @8.6, @"detail simkl rating");
 
+    NSDictionary *credited = @{
+        @"ids": @{ @"simkl": @42 },
+        @"title": @"Inception",
+        @"certification": @"PG-13",
+        @"director": @"Christopher Nolan"
+    };
+    MRMediaItem *creditedItem = [MRMediaItem itemWithDetailDictionary:credited
+                                                                  type:MRMediaTypeMovie];
+    MRAssertEqualObjects(creditedItem.certification, @"PG-13", @"detail certification");
+    MRAssertEqualObjects(creditedItem.director, @"Christopher Nolan", @"detail director");
+
+    MRMediaItem *base = [[MRMediaItem alloc] init];
+    base.simklID = 42;
+    MRMediaItem *merged = [base itemByMergingDetailDictionary:credited];
+    MRAssertEqualObjects(merged.certification, @"PG-13", @"merged certification");
+    MRAssertEqualObjects(merged.director, @"Christopher Nolan", @"merged director");
+
+    MRMediaItem *creditedRoundTrip = [MRMediaItem itemWithDictionaryRepresentation:
+                                      [creditedItem dictionaryRepresentation]];
+    MRAssertEqualObjects(creditedRoundTrip.certification, @"PG-13",
+                         @"round-trip certification");
+    MRAssertEqualObjects(creditedRoundTrip.director, @"Christopher Nolan",
+                         @"round-trip director");
+
     // Null and missing fields normalize instead of crashing or inventing data.
     NSDictionary *sparse = @{
         @"status": [NSNull null],

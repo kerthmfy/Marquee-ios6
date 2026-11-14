@@ -66,6 +66,9 @@
 // Attaches the bordered white card background behind the view's content.
 + (void)styleCardView:(UIView *)view first:(BOOL)first last:(BOOL)last;
 
+// Rounds a poster or still thumbnail and adds a subtle dark hairline.
++ (void)stylePosterThumbnailView:(UIView *)view;
+
 // 32 pt section headers. The plain style is the lighter For You row head;
 // the grouped style is the pinstripe settings head.
 + (UIView *)sectionHeaderViewWithTitle:(NSString *)title;

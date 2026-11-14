@@ -26,6 +26,8 @@
 @property (nonatomic, copy) NSString *overview;
 @property (nonatomic, copy) NSString *network;
 @property (nonatomic, copy) NSString *country;
+@property (nonatomic, copy) NSString *certification;
+@property (nonatomic, copy) NSString *director;
 @property (nonatomic, copy) NSString *releaseDate;
 @property (nonatomic, copy) NSString *airStatus;
 
