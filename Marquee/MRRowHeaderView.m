@@ -25,8 +25,10 @@ static const CGFloat MRRowHeaderBadgeSide = 16.0;
         [MRLayout rowHeaderHeightForDeviceClass:device])];
     if (self) {
         self.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-        self.backgroundColor = [UIColor clearColor];
-        self.opaque = NO;
+        // Plain table headers pin to the top while scrolling. Use the table's
+        // own background so rows scrolling underneath cannot show through.
+        self.backgroundColor = [MRAppearance groupBackground];
+        self.opaque = YES;
 
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
         _titleLabel.backgroundColor = [UIColor clearColor];
