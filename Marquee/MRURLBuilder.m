@@ -145,6 +145,12 @@ static NSString *MRImageProxyURL(NSString *sourceURL) {
     return MRImageProxyURL(source);
 }
 
++ (NSString *)episodeURLForPath:(NSString *)path size:(NSString *)size {
+    NSString *source = [NSString stringWithFormat:@"https://simkl.in/episodes/%@%@.webp",
+                        MRURLPathWithoutLeadingSlash(path), size ?: @""];
+    return MRImageProxyURL(source);
+}
+
 + (NSString *)posterPlaceholderURL {
     return MRImageProxyURL(@"https://simkl.in/posters/poster_no_pic_c.png");
 }

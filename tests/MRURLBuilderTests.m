@@ -36,6 +36,11 @@ void MRRunURLBuilderTests(void) {
         @"https://wsrv.nl/?url=https://simkl.in/fanart/def_medium.webp&output=jpg&q=90",
         @"fanart jpeg url");
 
+    NSString *episode = [MRURLBuilder episodeURLForPath:@"31/318121421ca3e9c34" size:@"_m"];
+    MRAssertEqualObjects(episode,
+        @"https://wsrv.nl/?url=https://simkl.in/episodes/31/318121421ca3e9c34_m.webp&output=jpg&q=90",
+        @"episode still jpeg url");
+
     NSString *web = [MRURLBuilder simklWebURLForType:MRMediaTypeMovie simklID:342994 slug:@"john-wick"];
     MRAssertEqualObjects(web, @"https://simkl.com/movies/342994/john-wick", @"simkl web url");
 

@@ -661,6 +661,30 @@ static void MRDeliverOnMain(void (^block)(void)) {
     }];
 }
 
+- (id<MRHTTPTask>)fetchEpisodesForType:(MRMediaType)type
+                              simklID:(NSInteger)simklID
+                            completion:(void (^)(NSArray *json, NSError *error))completion {
+    if (type == MRMediaTypeMovie || simklID <= 0) {
+        MRDeliverOnMain(^{
+            if (completion != nil) {
+                completion(nil, [MRError errorWithKind:MRErrorKindNotFound]);
+            }
+        });
+        return nil;
+    }
+
+    NSString *path = [NSString stringWithFormat:@"%@/episodes/%ld",
+                      MRMediaTypeAPIPath(type), (long)simklID];
+    NSString *URL = [MRURLBuilder apiURLForPath:path query:nil];
+    return [self fetchURL:URL
+            expectedClass:[NSArray class]
+               completion:^(id json, NSError *error) {
+        if (completion != nil) {
+            completion((NSArray *)json, error);
+        }
+    }];
+}
+
 #pragma mark - Authenticated sync reads
 
 static NSString *MRAPIClientSyncTypeKey(MRMediaType type) {    switch (type) {

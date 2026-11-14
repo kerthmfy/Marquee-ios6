@@ -318,6 +318,69 @@ static void MRRunDetailURLTest(void) {
     }
 }
 
+static void MRRunEpisodeURLTest(void) {
+    NSArray *types = @[ @(MRMediaTypeShow), @(MRMediaTypeAnime) ];
+    NSArray *segments = @[ @"tv", @"anime" ];
+    NSArray *ids = @[ @17465, @39793 ];
+    NSUInteger index = 0;
+    for (NSNumber *typeNumber in types) {
+        MRAPIClientTestContext *context = [MRAPIClientTestContext context];
+        NSArray *episodes = @[ @{
+            @"season": @1,
+            @"episode": @1,
+            @"title": @"Winter Is Coming",
+            @"description": @"A first episode.",
+            @"runtime": @61,
+            @"date": @"2011-04-17T21:00:00-04:00"
+        } ];
+        [context.http enqueueResponse:MRResponseWithJSON(200, episodes, nil)];
+
+        __block NSUInteger completions = 0;
+        __block NSArray *result = nil;
+        [context.client fetchEpisodesForType:(MRMediaType)[typeNumber integerValue]
+                                    simklID:[[ids objectAtIndex:index] integerValue]
+                                  completion:^(NSArray *json, NSError *error) {
+            completions += 1;
+            result = json;
+        }];
+        MRAssertTrue(MRRunUntil(^BOOL { return completions > 0; }, 2.0),
+                     @"episode completion delivered for tv and anime");
+        MRAssertEqualObjects(episodes, result, @"episode array parsed");
+
+        NSString *expected = [NSString stringWithFormat:
+            @"https://api.simkl.com/%@/episodes/%@%@",
+            [segments objectAtIndex:index], [ids objectAtIndex:index],
+            MRCommonQuery()];
+        MRAssertEqualObjects(expected, [[context.http requestAtIndex:0] URL],
+                             @"episode url shape");
+        MRAssertEqualObjects(MR_USER_AGENT,
+                             [[[context.http requestAtIndex:0] headers] objectForKey:@"User-Agent"],
+                             @"episode user agent");
+        MRAssertTrue([[[context.http requestAtIndex:0] headers]
+                      objectForKey:@"Authorization"] == nil,
+                     @"episode fetch has no Authorization header");
+        [context teardown];
+        index += 1;
+    }
+
+    MRAPIClientTestContext *movieContext = [MRAPIClientTestContext context];
+    __block NSUInteger movieCompletions = 0;
+    __block NSError *movieError = nil;
+    [movieContext.client fetchEpisodesForType:MRMediaTypeMovie
+                                      simklID:342994
+                                    completion:^(NSArray *json, NSError *error) {
+        movieCompletions += 1;
+        movieError = error;
+    }];
+    MRAssertTrue(MRRunUntil(^BOOL { return movieCompletions > 0; }, 2.0),
+                 @"movie episode request completion delivered");
+    MRAssertEqualIntegers(MRErrorKindNotFound, [MRError kindForError:movieError],
+                          @"movie episode request is not found");
+    MRAssertEqualIntegers(0, (NSInteger)[movieContext.http requestCount],
+                          @"movie episode request sends no HTTP");
+    [movieContext teardown];
+}
+
 static void MRRunFreshCacheTest(void) {
     MRAPIClientTestContext *context = [MRAPIClientTestContext context];
     [context.http enqueueResponse:[MRHTTPResponse responseWithStatusCode:200
@@ -702,6 +765,7 @@ void MRRunAPIClientPublicTests(void) {
     MRRunGenreURLTest();
     MRRunGenreFileURLTest();
     MRRunDetailURLTest();
+    MRRunEpisodeURLTest();
     MRRunFreshCacheTest();
     MRRunGenreAndDetailCacheTest();
     MRRun304RefreshTest();

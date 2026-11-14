@@ -35,6 +35,7 @@
 - (id<MRHTTPTask>)fetchGenreIndexForType:(MRMediaType)type completion:(void (^)(NSArray *json, NSError *error))completion;
 - (id<MRHTTPTask>)fetchGenre:(NSString *)slug forType:(MRMediaType)type completion:(void (^)(NSArray *json, NSError *error))completion;
 - (id<MRHTTPTask>)fetchDetailForType:(MRMediaType)type simklID:(NSInteger)simklID completion:(void (^)(NSDictionary *json, NSError *error))completion;
+- (id<MRHTTPTask>)fetchEpisodesForType:(MRMediaType)type simklID:(NSInteger)simklID completion:(void (^)(NSArray *json, NSError *error))completion;
 
 // Authenticated mixed-type search. Results carry endpoint_type so callers can
 // build MRMediaItem values with +itemWithSearchDictionary:.
