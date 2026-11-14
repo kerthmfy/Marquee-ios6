@@ -12,6 +12,7 @@
 #import "MREpisode.h"
 #import "MRLayout.h"
 #import "MRPosterImageView.h"
+#import "MRURLBuilder.h"
 
 typedef NS_ENUM(NSInteger, MRDetailEpisodeGuideState) {
     MRDetailEpisodeGuideStateLoading,
@@ -192,7 +193,8 @@ static CGFloat MRGuideTextHeight(NSString *text, UIFont *font, CGFloat width,
 - (void)configureWithEpisode:(MREpisode *)episode imageCache:(MRImageCache *)imageCache {
     [self.stillView setImageCache:imageCache];
     if (episode.imagePath.length > 0) {
-        [self.stillView setImagePath:episode.imagePath size:@"_m"];
+        [self.stillView setImageURL:
+            [MRURLBuilder episodeURLForPath:episode.imagePath size:@"_m"]];
     } else {
         [self.stillView setImageURL:nil];
     }

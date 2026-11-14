@@ -73,12 +73,12 @@
         _progressTrackView = [[UIView alloc] initWithFrame:CGRectZero];
         _progressTrackView.backgroundColor = [MRAppearance progressTrackColor];
         _progressTrackView.hidden = YES;
-        [self addSubview:_progressTrackView];
+        [_posterView addSubview:_progressTrackView];
 
         _progressFillView = [[UIView alloc] initWithFrame:CGRectZero];
         _progressFillView.backgroundColor = [MRAppearance progressFillColor];
         _progressFillView.hidden = YES;
-        [self addSubview:_progressFillView];
+        [_posterView addSubview:_progressFillView];
 
         UITapGestureRecognizer *tap =
             [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];

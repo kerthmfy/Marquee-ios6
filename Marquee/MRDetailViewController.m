@@ -11,6 +11,9 @@
 #import "MRAppearance.h"
 #import "MRBannerView.h"
 #import "MRDetailActions.h"
+#import "MRDetailEpisodeGuideView.h"
+#import "MRDetailPosterPanelView.h"
+#import "MREpisode.h"
 #import "MRError.h"
 #import "MRErrorPresenter.h"
 #import "MRImageCache.h"
@@ -584,6 +587,8 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
 @property (nonatomic, strong) UIScrollView *scrollView;
 @property (nonatomic, strong) MRDetailHeroView *heroView;
+@property (nonatomic, strong) MRDetailPosterPanelView *posterPanelView;
+@property (nonatomic, strong) MRDetailEpisodeGuideView *episodeGuideView;
 @property (nonatomic, strong) UIView *actionsCard;
 @property (nonatomic, strong) UIButton *primaryButton;
 @property (nonatomic, strong) MRDetailActionRowView *rateRow;
@@ -621,7 +626,10 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 @property (nonatomic, strong) MRPlaceholderView *errorView;
 
 @property (nonatomic, strong) id<MRHTTPTask> detailTask;
+@property (nonatomic, strong) id<MRHTTPTask> episodesTask;
 @property (nonatomic, strong) NSDictionary *detailDictionary;
+@property (nonatomic, copy) NSArray *episodes;
+@property (nonatomic, assign) NSInteger episodesGeneration;
 @property (nonatomic, copy) NSArray *similarItems;
 @property (nonatomic, copy) NSArray *recommendedItems;
 @property (nonatomic, assign) BOOL offlineVisible;
@@ -723,6 +731,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
 - (void)dealloc {
     [self.detailTask cancel];
+    [self.episodesTask cancel];
     if (self.libraryObserver != nil) {
         [[NSNotificationCenter defaultCenter] removeObserver:self.libraryObserver];
     }
@@ -760,6 +769,11 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     };
     [scrollView addSubview:hero];
     self.heroView = hero;
+
+    MRDetailPosterPanelView *posterPanel =
+        [[MRDetailPosterPanelView alloc] initWithFrame:CGRectZero];
+    [scrollView addSubview:posterPanel];
+    self.posterPanelView = posterPanel;
 
     [self buildActionsCard];
     [self buildBanner];
@@ -850,6 +864,18 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     self.nextTitleLabel = nextTitle;
     self.nextPrimaryLabel = nextPrimary;
     self.nextSecondaryLabel = nextSecondary;
+
+    MRDetailEpisodeGuideView *guide =
+        [[MRDetailEpisodeGuideView alloc] initWithFrame:CGRectZero];
+    guide.imageCache = self.imageCache;
+    guide.retryHandler = ^{
+        [weakSelf fetchEpisodes];
+    };
+    guide.layoutChangedHandler = ^{
+        [weakSelf.view setNeedsLayout];
+    };
+    [scrollView addSubview:guide];
+    self.episodeGuideView = guide;
 
     MRDetailRelatedView *similar = [[MRDetailRelatedView alloc] initWithFrame:CGRectZero];
     [scrollView addSubview:similar];
@@ -1002,6 +1028,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
     self.title = item.title.length > 0 ? item.title : @"Details";
     [self.heroView configureWithItem:item imageCache:self.imageCache];
+    [self.posterPanelView configureWithItem:item imageCache:self.imageCache];
 
     self.overviewBodyLabel.text = item.overview != nil ? item.overview : @"";
     [self rebuildInfoRows];
@@ -1166,6 +1193,8 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     if (self.item == nil) {
         return;
     }
+    [self fetchEpisodes];
+
     if (self.item.simklID <= 0 || self.apiClient == nil) {
         self.offlineVisible = YES;
         [self updateContent];
@@ -1208,6 +1237,47 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
                 [json objectForKey:@"users_recommendations"]];
         strongSelf.offlineVisible = NO;
         [strongSelf updateContent];
+    }];
+}
+
+- (void)fetchEpisodes {
+    [self.episodesTask cancel];
+    self.episodesTask = nil;
+    self.episodesGeneration += 1;
+    NSInteger generation = self.episodesGeneration;
+
+    if (self.episodeGuideView == nil) {
+        return;
+    }
+    if (self.item == nil || self.item.type == MRMediaTypeMovie ||
+        self.item.simklID <= 0 || self.apiClient == nil) {
+        self.episodes = @[];
+        [self.episodeGuideView showEpisodes:@[]];
+        return;
+    }
+
+    [self.episodeGuideView showLoading];
+    __weak MRDetailViewController *weakSelf = self;
+    self.episodesTask =
+        [self.apiClient fetchEpisodesForType:self.item.type
+                                    simklID:self.item.simklID
+                                  completion:^(NSArray *json, NSError *error) {
+        MRDetailViewController *strongSelf = weakSelf;
+        if (strongSelf == nil || generation != strongSelf.episodesGeneration) {
+            return;
+        }
+        strongSelf.episodesTask = nil;
+        if (error != nil) {
+            if ([MRError kindForError:error] == MRErrorKindCancelled) {
+                return;
+            }
+            [strongSelf.episodeGuideView showError];
+            return;
+        }
+        NSArray *episodes = [MREpisode episodesWithDictionaries:json
+                                                           type:strongSelf.item.type];
+        strongSelf.episodes = episodes;
+        [strongSelf.episodeGuideView showEpisodes:episodes];
     }];
 }
 
@@ -1712,14 +1782,6 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 
     CGFloat y = heroHeight + MRDetailCardGap;
 
-    BOOL showsActions = self.actionsCard != nil && !self.actionsCard.hidden;
-    if (showsActions) {
-        CGFloat cardHeight = [self actionsCardHeight];
-        self.actionsCard.frame = CGRectMake(x, y, cardWidth, cardHeight);
-        [self layoutActionsCard];
-        y += cardHeight + MRDetailCardGap;
-    }
-
     BOOL showsOffline = self.offlineVisible && self.item != nil;
     self.offlineCard.hidden = !showsOffline;
     if (showsOffline) {
@@ -1727,6 +1789,14 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
         self.offlineLabel.frame = CGRectMake(pad, 0.0, cardWidth - pad * 2.0 - 64.0, 44.0);
         self.retryButton.frame = CGRectMake(cardWidth - pad - 56.0, 0.0, 56.0, 44.0);
         y += 44.0 + MRDetailCardGap;
+    }
+
+    CGFloat panelHeight = [self.posterPanelView heightForWidth:cardWidth];
+    BOOL showsPanel = panelHeight > 0.0;
+    self.posterPanelView.hidden = !showsPanel;
+    if (showsPanel) {
+        self.posterPanelView.frame = CGRectMake(x, y, cardWidth, panelHeight);
+        y += panelHeight + MRDetailCardGap;
     }
 
     NSString *overview = self.overviewBodyLabel.text != nil ? self.overviewBodyLabel.text : @"";
@@ -1748,6 +1818,35 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
         y += cardHeight + MRDetailCardGap;
     }
 
+    BOOL showsActions = self.actionsCard != nil && !self.actionsCard.hidden;
+    if (showsActions) {
+        CGFloat cardHeight = [self actionsCardHeight];
+        self.actionsCard.frame = CGRectMake(x, y, cardWidth, cardHeight);
+        [self layoutActionsCard];
+        y += cardHeight + MRDetailCardGap;
+    }
+
+    BOOL showsNext = [self hasNextEpisodeInfo];
+    self.nextCard.hidden = !showsNext;
+    if (showsNext) {
+        CGFloat cardHeight = tablet ? 84.0 : 76.0;
+        self.nextCard.frame = CGRectMake(x, y, cardWidth, cardHeight);
+        self.nextTitleLabel.frame = CGRectMake(pad, 10.0, cardWidth - pad * 2.0, 16.0);
+        self.nextPrimaryLabel.frame = CGRectMake(pad, 30.0, cardWidth - pad * 2.0, 20.0);
+        self.nextPrimaryLabel.font = tablet ? [UIFont boldSystemFontOfSize:16.0]
+                                            : [MRAppearance cardTitleFont];
+        self.nextSecondaryLabel.frame = CGRectMake(pad, 52.0, cardWidth - pad * 2.0, 16.0);
+        y += cardHeight + MRDetailCardGap;
+    }
+
+    CGFloat guideHeight = [self.episodeGuideView heightForWidth:cardWidth];
+    BOOL showsGuide = !showsOffline && guideHeight > 0.0;
+    self.episodeGuideView.hidden = !showsGuide;
+    if (showsGuide) {
+        self.episodeGuideView.frame = CGRectMake(x, y, cardWidth, guideHeight);
+        y += guideHeight + MRDetailCardGap;
+    }
+
     NSUInteger infoCount = self.infoRows.count;
     BOOL showsInfo = infoCount > 0;
     self.infoCard.hidden = !showsInfo;
@@ -1762,19 +1861,6 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
             row.frame = CGRectMake(0.0, rowY, cardWidth, rowHeight);
             rowY += rowHeight;
         }
-        y += cardHeight + MRDetailCardGap;
-    }
-
-    BOOL showsNext = [self hasNextEpisodeInfo];
-    self.nextCard.hidden = !showsNext;
-    if (showsNext) {
-        CGFloat cardHeight = tablet ? 84.0 : 76.0;
-        self.nextCard.frame = CGRectMake(x, y, cardWidth, cardHeight);
-        self.nextTitleLabel.frame = CGRectMake(pad, 10.0, cardWidth - pad * 2.0, 16.0);
-        self.nextPrimaryLabel.frame = CGRectMake(pad, 30.0, cardWidth - pad * 2.0, 20.0);
-        self.nextPrimaryLabel.font = tablet ? [UIFont boldSystemFontOfSize:16.0]
-                                            : [MRAppearance cardTitleFont];
-        self.nextSecondaryLabel.frame = CGRectMake(pad, 52.0, cardWidth - pad * 2.0, 16.0);
         y += cardHeight + MRDetailCardGap;
     }
 
@@ -1809,5 +1895,4 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     CGFloat contentHeight = y + footerHeight + 16.0;
     self.scrollView.contentSize = CGSizeMake(width, contentHeight);
 }
-
 @end
