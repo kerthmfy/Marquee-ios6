@@ -7,6 +7,7 @@
 #import "MRTestSupport.h"
 
 void MRRunMediaItemTests(void);
+void MRRunEpisodeTests(void);
 void MRRunDateTests(void);
 void MRRunURLBuilderTests(void);
 void MRRunErrorTests(void);
@@ -43,6 +44,9 @@ int main(int argc, const char *argv[]) {
     @autoreleasepool {
         MRTestBeginSuite(@"media item");
         MRRunMediaItemTests();
+
+        MRTestBeginSuite(@"episode");
+        MRRunEpisodeTests();
 
         MRTestBeginSuite(@"date");
         MRRunDateTests();

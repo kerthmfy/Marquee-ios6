@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")/.."
 clang -fobjc-arc -framework Foundation -framework CoreGraphics -I Marquee \
   Marquee/MRJSON.m Marquee/MRDate.m Marquee/MRMediaType.m \
-  Marquee/MRWatchStatus.m Marquee/MRMediaItem.m Marquee/MRClock.m Marquee/MRLayout.m \
+  Marquee/MRWatchStatus.m Marquee/MRMediaItem.m Marquee/MREpisode.m Marquee/MRClock.m Marquee/MRLayout.m \
   Marquee/MRURLBuilder.m Marquee/MRError.m \
   Marquee/MRErrorPresenter.m \
   Marquee/MRHTTPRequest.m Marquee/MRHTTPResponse.m Marquee/MRAPIRequestOperation.m \
