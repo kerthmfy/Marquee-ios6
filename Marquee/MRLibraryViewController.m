@@ -82,8 +82,7 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
         [self.contentView addSubview:_cardView];
 
         _posterView = [[MRPosterImageView alloc] initWithImageCache:nil];
-        _posterView.layer.cornerRadius = 3.0;
-        _posterView.layer.masksToBounds = YES;
+        [MRAppearance stylePosterThumbnailView:_posterView];
         [_cardView addSubview:_posterView];
 
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];

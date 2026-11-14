@@ -41,8 +41,7 @@
 
         _posterView = [[MRPosterImageView alloc] initWithImageCache:imageCache];
         _posterView.frame = CGRectMake(0.0, 0.0, cardWidth, imageHeight);
-        _posterView.layer.cornerRadius = 3.0;
-        _posterView.layer.masksToBounds = YES;
+        [MRAppearance stylePosterThumbnailView:_posterView];
         [self addSubview:_posterView];
 
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0.0,
