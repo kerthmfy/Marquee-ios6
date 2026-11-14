@@ -1,13 +1,17 @@
 # Marquee - Simkl client for iOS 6
 
-Marquee is a standalone, native SimKL client for iOS 6. It is written in
-Objective-C with ARC and talks directly to the SimKL API.
+Marquee is a standalone, native SimKL client for iOS 6.
+
+<p align="center">
+  <img src="screenshots/attachment-2.png" width="220" alt="first bar">
+  <img src="screenshots/attachment-1.png" width="220" alt="second bar">
+  <img src="screenshots/attachment-0.png" width="220" alt="profile bar">
+</p>
 
 ## Platform support
 
 - iOS 6.0 or later, armv7.
-- Free SimKL accounts only. Marquee does not use PRO/VIP-only endpoints.
-
+  
 ## Build
 
 Prerequisites:
@@ -41,18 +45,6 @@ The device flow shows a code and opens `simkl.com/pin` for approval. Tokens are
 stored in the Keychain; account data and the write outbox are stored as JSON
 files under the app's Library directory.
 
-## Images
-
-iOS 6 cannot decode the WebP posters served by SimKL. Marquee requests every
-poster and fanart image through `wsrv.nl` with `output=jpg`; do not remove that
-parameter or request WebP directly.
-
-## Write testing
-
-All write checks use sacrificial titles on the real account. Before testing a
-status, history, rating, or remove action, choose a title that can be changed
-back, and restore the account to its baseline afterward. Pending writes are
-persisted in `outbox.json` and resume only for the same SimKL account.
 
 ## Known limitations.. but will try to implement and have a workaround
 
