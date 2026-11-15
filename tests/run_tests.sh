@@ -23,3 +23,5 @@ clang -fobjc-arc -framework Foundation -framework CoreGraphics -I Marquee \
   Marquee/MRDeviceFlow.m Marquee/MRSimklAuth.m \
   tests/*.m -o /tmp/marquee-tests
 /tmp/marquee-tests
+
+tests/test_publish_cydia.sh

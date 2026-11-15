@@ -53,6 +53,27 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+control_field() {
+  local key="$1"
+  local file="$2"
+  awk -v key="$key" '
+    index($0, key ":") == 1 {
+      value = substr($0, length(key) + 2)
+      sub(/^[ \t]+/, "", value)
+      sub(/[ \t]+$/, "", value)
+      print value
+      exit
+    }
+  ' "$file"
+}
+
+for tool in git dpkg dpkg-deb python3; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "$tool is required to publish" >&2
+    exit 1
+  }
+done
+
 CONF="$APP_ROOT/tools/publish.conf"
 [ -f "$CONF" ] || { echo "missing $CONF; copy publish.conf.example first" >&2; exit 1; }
 # shellcheck disable=SC1090
@@ -81,16 +102,77 @@ DEB_DIR="$REPO_DIR/docs/debs"
   exit 1
 }
 
-PACKAGE="$(awk -F': ' '/^Package:/{print $2; exit}' "$APP_ROOT/control")"
-VERSION="$(awk -F': ' '/^Version:/{print $2; exit}' "$APP_ROOT/control")"
+# Publish from a clean, known commit so a failure can restore the exact state
+# the repo was in before this run.
+git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "$REPO_DIR is not a git checkout" >&2
+  exit 1
+}
+REPO_BRANCH="$(git -C "$REPO_DIR" symbolic-ref --quiet --short HEAD || true)"
+[ "$REPO_BRANCH" = "main" ] || {
+  echo "distribution repo must be on main, not ${REPO_BRANCH:-detached HEAD}" >&2
+  exit 1
+}
+if [ -n "$(git -C "$REPO_DIR" status --porcelain)" ]; then
+  echo "distribution repo has uncommitted changes; commit or stash them first:" >&2
+  git -C "$REPO_DIR" status --short >&2
+  exit 1
+fi
+PREFLIGHT_HEAD="$(git -C "$REPO_DIR" rev-parse HEAD)"
+PUBLISH_OK=0
+
+cleanup_on_failure() {
+  local status=$?
+  if [ "$status" -ne 0 ] && [ "$PUBLISH_OK" -ne 1 ]; then
+    echo "publish failed; restoring $REPO_DIR to $PREFLIGHT_HEAD" >&2
+    git -C "$REPO_DIR" reset --hard "$PREFLIGHT_HEAD" >/dev/null 2>&1 || true
+    git -C "$REPO_DIR" clean -fd >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_on_failure EXIT
+
+[ -f "$APP_ROOT/control" ] || { echo "missing $APP_ROOT/control" >&2; exit 1; }
+PACKAGE="$(control_field Package "$APP_ROOT/control")"
+VERSION="$(control_field Version "$APP_ROOT/control")"
 [ -n "$PACKAGE" ] || { echo "control has no Package field" >&2; exit 1; }
 [ -n "$VERSION" ] || { echo "control has no Version field" >&2; exit 1; }
+if ! dpkg --compare-versions "$VERSION" eq "$VERSION" 2>/dev/null; then
+  echo "control has an invalid Version: $VERSION" >&2
+  exit 1
+fi
 
-if ! python3 - "$MANIFEST" "$PACKAGE" <<'PY'
+ICON_SOURCE="$APP_ROOT/$REPO_ICON_SOURCE"
+[ -f "$ICON_SOURCE" ] || { echo "icon not found: $ICON_SOURCE" >&2; exit 1; }
+[ -s "$ICON_SOURCE" ] || { echo "icon is empty: $ICON_SOURCE" >&2; exit 1; }
+
+SCREENSHOTS_SOURCE="$APP_ROOT/$REPO_SCREENSHOTS_SOURCE"
+[ -e "$SCREENSHOTS_SOURCE" ] || {
+  echo "screenshots not found: $SCREENSHOTS_SOURCE" >&2
+  exit 1
+}
+if [ -d "$SCREENSHOTS_SOURCE" ]; then
+  SHOT_COUNT="$(find "$SCREENSHOTS_SOURCE" -maxdepth 1 -type f \
+    \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) | wc -l | tr -d ' ')"
+  [ "$SHOT_COUNT" -gt 0 ] || {
+    echo "screenshots directory has no PNG or JPEG files: $SCREENSHOTS_SOURCE" >&2
+    exit 1
+  }
+else
+  case "$SCREENSHOTS_SOURCE" in
+    *.png|*.PNG|*.jpg|*.JPG|*.jpeg|*.JPEG) ;;
+    *) echo "screenshots file must be PNG or JPEG: $SCREENSHOTS_SOURCE" >&2; exit 1 ;;
+  esac
+fi
+
+# The manifest must describe this exact package and slug, and its image paths
+# must match what the publisher is about to copy. All of this runs before the
+# repo is touched.
+if ! python3 - "$MANIFEST" "$PACKAGE" "$REPO_SLUG" "$SCREENSHOTS_SOURCE" <<'PY'
 import json
+import os
 import sys
 
-manifest_path, package_id = sys.argv[1], sys.argv[2]
+manifest_path, package_id, repo_slug, shots_source = sys.argv[1:5]
 try:
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
@@ -98,22 +180,96 @@ except (OSError, ValueError) as error:
     print("cannot read %s: %s" % (manifest_path, error), file=sys.stderr)
     sys.exit(1)
 
-if not any(pkg.get("package") == package_id for pkg in manifest.get("packages", [])):
+matches = [
+    package
+    for package in manifest.get("packages", [])
+    if package.get("package") == package_id
+]
+if not matches:
     print(
         "add a manifest entry for %s in %s" % (package_id, manifest_path),
         file=sys.stderr,
     )
     sys.exit(1)
+
+entry = matches[0]
+manifest_slug = entry.get("slug", "")
+if manifest_slug != repo_slug:
+    print(
+        "REPO_SLUG is %r but the manifest slug for %s is %r"
+        % (repo_slug, package_id, manifest_slug),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+expected_icon = "assets/icons/%s.png" % repo_slug
+if entry.get("icon") != expected_icon:
+    print(
+        "manifest icon for %s is %r; expected %r"
+        % (package_id, entry.get("icon"), expected_icon),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+if os.path.isdir(shots_source):
+    available = {
+        name
+        for name in os.listdir(shots_source)
+        if name.lower().endswith((".png", ".jpg", ".jpeg"))
+    }
+else:
+    available = {os.path.basename(shots_source)}
+
+for shot in entry.get("screenshots") or []:
+    prefix = "assets/screenshots/%s/" % repo_slug
+    if not shot.startswith(prefix):
+        print(
+            "manifest screenshot %r must start with %r" % (shot, prefix),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if os.path.basename(shot) not in available:
+        print(
+            "manifest screenshot %r has no matching file in %s"
+            % (shot, shots_source),
+            file=sys.stderr,
+        )
+        sys.exit(1)
 PY
 then
   exit 1
 fi
 
-EXISTING="$(find "$DEB_DIR" -maxdepth 1 -type f -name "${PACKAGE}_${VERSION}_*.deb" -print -quit)"
-if [ -n "$EXISTING" ] && [ "$REPLACE" -ne 1 ]; then
-  echo "already published: $(basename "$EXISTING")" >&2
-  echo "bump Version in control, or pass --replace to overwrite it" >&2
-  exit 1
+# Find the newest version already imported for this package. Equal and lower
+# versions are rejected unless the caller explicitly passes --replace.
+LATEST=""
+for deb in "$DEB_DIR"/*.deb; do
+  [ -f "$deb" ] || continue
+  if ! DEB_PACKAGE="$(dpkg-deb -f "$deb" Package 2>/dev/null)"; then
+    echo "cannot read $deb; fix the repo before publishing" >&2
+    exit 1
+  fi
+  [ "$DEB_PACKAGE" = "$PACKAGE" ] || continue
+  DEB_VERSION="$(dpkg-deb -f "$deb" Version 2>/dev/null || true)"
+  [ -n "$DEB_VERSION" ] || {
+    echo "cannot read the version from $deb" >&2
+    exit 1
+  }
+  if [ -z "$LATEST" ] || dpkg --compare-versions "$DEB_VERSION" gt "$LATEST"; then
+    LATEST="$DEB_VERSION"
+  fi
+done
+
+if [ -n "$LATEST" ] && [ "$REPLACE" -ne 1 ]; then
+  if ! dpkg --compare-versions "$VERSION" gt "$LATEST"; then
+    echo "published version $LATEST is not older than $VERSION" >&2
+    echo "bump Version in control, or pass --replace to overwrite it" >&2
+    exit 1
+  fi
+fi
+if [ -n "$LATEST" ] && [ "$REPLACE" -eq 1 ] &&
+  dpkg --compare-versions "$VERSION" lt "$LATEST"; then
+  echo "warning: --replace is publishing $VERSION over newer $LATEST" >&2
 fi
 
 # Remove only stale local builds of this exact version so we cannot import an
@@ -142,33 +298,40 @@ BUILT_VERSION="$(dpkg-deb -f "$BUILT_DEB" Version)"
   exit 1
 }
 
-cp "$BUILT_DEB" "$DEB_DIR/"
 NEW_DEB_NAME="$(basename "$BUILT_DEB")"
+DEST_DEB="$DEB_DIR/$NEW_DEB_NAME"
+cp "$BUILT_DEB" "$DEST_DEB.publishing"
+mv "$DEST_DEB.publishing" "$DEST_DEB"
 
-# One version per package: remove older debs only after the new one is in place.
-find "$DEB_DIR" -maxdepth 1 -type f -name "${PACKAGE}_*.deb" \
-  ! -name "$NEW_DEB_NAME" -exec rm -f {} +
+# One version per package. Match by control metadata so a renamed old deb is
+# removed too; it is safe to delete only after the replacement is in place.
+for deb in "$DEB_DIR"/*.deb; do
+  [ -f "$deb" ] || continue
+  [ "$deb" = "$DEST_DEB" ] && continue
+  DEB_PACKAGE="$(dpkg-deb -f "$deb" Package 2>/dev/null || true)"
+  if [ "$DEB_PACKAGE" = "$PACKAGE" ]; then
+    rm -f "$deb"
+  fi
+done
 
-ICON_SOURCE="$APP_ROOT/$REPO_ICON_SOURCE"
-[ -f "$ICON_SOURCE" ] || { echo "icon not found: $ICON_SOURCE" >&2; exit 1; }
-mkdir -p "$REPO_DIR/docs/assets/icons"
-cp "$ICON_SOURCE" "$REPO_DIR/docs/assets/icons/${REPO_SLUG}.png"
+ICON_DEST="$REPO_DIR/docs/assets/icons/${REPO_SLUG}.png"
+mkdir -p "$(dirname "$ICON_DEST")"
+cp "$ICON_SOURCE" "$ICON_DEST.publishing"
+mv "$ICON_DEST.publishing" "$ICON_DEST"
 
-SCREENSHOTS_SOURCE="$APP_ROOT/$REPO_SCREENSHOTS_SOURCE"
 SHOT_DEST="$REPO_DIR/docs/assets/screenshots/$REPO_SLUG"
-[ -e "$SCREENSHOTS_SOURCE" ] || {
-  echo "screenshots not found: $SCREENSHOTS_SOURCE" >&2
-  exit 1
-}
-rm -rf "$SHOT_DEST"
-mkdir -p "$SHOT_DEST"
+SHOT_TMP="$REPO_DIR/docs/assets/screenshots/.${REPO_SLUG}.publishing"
+rm -rf "$SHOT_TMP"
+mkdir -p "$SHOT_TMP"
 if [ -d "$SCREENSHOTS_SOURCE" ]; then
   find "$SCREENSHOTS_SOURCE" -maxdepth 1 -type f \
     \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) \
-    -exec cp {} "$SHOT_DEST/" \;
+    -exec cp {} "$SHOT_TMP/" \;
 else
-  cp "$SCREENSHOTS_SOURCE" "$SHOT_DEST/"
+  cp "$SCREENSHOTS_SOURCE" "$SHOT_TMP/"
 fi
+rm -rf "$SHOT_DEST"
+mv "$SHOT_TMP" "$SHOT_DEST"
 
 if [ "$PUSH" -eq 1 ]; then
   (cd "$REPO_DIR" && ./tools/update_repo.sh \
@@ -177,6 +340,7 @@ else
   (cd "$REPO_DIR" && ./tools/update_repo.sh \
     --message "publish: ${REPO_SLUG} ${VERSION}")
 fi
+PUBLISH_OK=1
 
 python3 - "$MANIFEST" "$PACKAGE" "$VERSION" <<'PY'
 import json
