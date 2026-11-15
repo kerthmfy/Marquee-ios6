@@ -1,0 +1,9 @@
+# Copy this file to publish.conf and edit the three values.
+#
+# REPO_SLUG is the package's page and asset folder in kerthmfy/repo:
+#   /p/<slug>/  and  assets/icons/<slug>.png
+# REPO_ICON_SOURCE is relative to this app repo's root.
+# REPO_SCREENSHOTS_SOURCE is a directory (or one image) relative to this repo.
+REPO_SLUG="my-app"
+REPO_ICON_SOURCE="Resources/Icon-72@2x.png"
+REPO_SCREENSHOTS_SOURCE="screenshots"
