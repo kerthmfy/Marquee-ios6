@@ -78,9 +78,11 @@ Bump `Version:` in `control` and the two version keys in
 
 The script builds with Theos, verifies the `.deb`, copies it and the app art
 into `repo/`, regenerates the apt indexes and site, commits, and pushes. It
-refuses to overwrite a published version; bump `control` for a real update.
-`REPO_DIR=/path/to/repo` overrides the sibling location, and `--no-push`
-keeps everything local for review.
+requires `repo/` to be a clean checkout on `main`, checks that the manifest slug
+and image paths match `publish.conf`, and rejects equal or lower versions;
+bump `control` for a real update. If a later step fails, it resets `repo/` to
+the commit it started from. `REPO_DIR=/path/to/repo` overrides the sibling
+location, and `--no-push` keeps everything local for review.
 
 ## Known limitations.. but will try to implement and have a workaround
 
