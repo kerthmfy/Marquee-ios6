@@ -11,7 +11,20 @@ Marquee is a standalone, native SimKL client for iOS 6.
 ## Platform support
 
 - iOS 6.0 or later, armv7.
-  
+
+## Install from Cydia
+
+Marquee is published in the KMY repo. On the device:
+
+1. Open Cydia and choose **Sources**.
+2. Tap **Edit**, then **Add**.
+3. Enter `https://kerthmfy.github.io/repo/`, tap **Add Source**, then install
+   Marquee from the KMY repo.
+
+Cydia's apt transport on iOS 6 can fetch this HTTPS source; the device's
+command-line `curl` cannot negotiate the same TLS, so use Cydia for installs
+and updates.
+
 ## Build
 
 Prerequisites:
@@ -45,6 +58,29 @@ The device flow shows a code and opens `simkl.com/pin` for approval. Tokens are
 stored in the Keychain; account data and the write outbox are stored as JSON
 files under the app's Library directory.
 
+
+## Publishing to Cydia
+
+The publisher expects the distribution repo as a sibling checkout:
+
+```text
+~/Documents/
+  marquee-worktree/   # this repo
+  repo/               # kerthmfy/repo
+```
+
+Bump `Version:` in `control` and the two version keys in
+`Marquee/Resources/Info.plist`, then build and publish:
+
+```sh
+./tools/publish-cydia.sh --push
+```
+
+The script builds with Theos, verifies the `.deb`, copies it and the app art
+into `repo/`, regenerates the apt indexes and site, commits, and pushes. It
+refuses to overwrite a published version; bump `control` for a real update.
+`REPO_DIR=/path/to/repo` overrides the sibling location, and `--no-push`
+keeps everything local for review.
 
 ## Known limitations.. but will try to implement and have a workaround
 
