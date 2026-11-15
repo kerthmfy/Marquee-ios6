@@ -8,7 +8,6 @@ Marquee is a standalone, native SimKL client for iOS 6.
   <img src="screenshots/attachment-0.png" width="220" alt="profile bar">
 </p>
 
-## Platform support
 
 - iOS 6.0 or later, armv7.
 
@@ -51,40 +50,12 @@ stored in the Keychain; account data and the write outbox are stored as JSON
 files under the app's Library directory.
 
 
-## Publishing to Cydia
+## future implementations
 
-The publisher expects the distribution repo as a sibling checkout:
-
-```text
-~/Documents/
-  marquee-worktree/   # this repo
-  repo/               # kerthmfy/repo
-```
-
-Bump `Version:` in `control` and the two version keys in
-`Marquee/Resources/Info.plist`, then build and publish:
-
-```sh
-./tools/publish-cydia.sh --push
-```
-
-The script builds with Theos, verifies the `.deb`, copies it and the app art
-into `repo/`, regenerates the apt indexes and site, commits, and pushes. It
-refuses to overwrite a published version; bump `control` for a real update.
-`REPO_DIR=/path/to/repo` overrides the sibling location, and `--no-push`
-keeps everything local for review.
-
-## Known limitations.. but will try to implement and have a workaround
-
-- No SimKL PRO/VIP features: rewatches, custom lists, and PRO-only data.
-- No scrobbling, playback sessions, or real-time progress.
-- No full season/episode browser; Marquee marks the next episode or the whole
-  title.
-- No calendar, DVD releases, trailers, comments, social features, or imports.
+- SimKL PRO/VIP features: rewatches, custom lists, and PRO-only data.
+- scrobbling, playback sessions, or real-time progress.
+-  calendar, DVD releases, trailers, comments, social features, or imports.
 - No push notifications, background sync, widgets, analytics, or crash
   reporting.
-- No Core Data or SQLite; persistence is file-backed JSON.
-- The app icon and launch image are temporary placeholders.
-- iPad layout can be checked only when iPad hardware is available; the
-  universal metrics and bundle metadata are covered by tests and package
-  inspection.
+-  app icon and launch image are temporary placeholders.
+
