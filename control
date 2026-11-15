@@ -7,3 +7,7 @@ Maintainer: kerthmfy
 Author: kerthmfy
 Section: Entertainment
 Depends: firmware (>= 6.0)
+Homepage: https://github.com/kerthmfy/Marquee-ios6
+Icon: http://kerthmfy.github.io/repo/assets/icons/marquee.png
+Depiction: http://kerthmfy.github.io/repo/p/marquee/
+Tag: purpose::application
