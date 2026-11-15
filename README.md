@@ -69,7 +69,8 @@ The publisher expects the distribution repo as a sibling checkout:
   repo/               # kerthmfy/repo
 ```
 
-Bump `Version:` in `control`, then build and publish:
+Bump `Version:` in `control` and the two version keys in
+`Marquee/Resources/Info.plist`, then build and publish:
 
 ```sh
 ./tools/publish-cydia.sh --push
