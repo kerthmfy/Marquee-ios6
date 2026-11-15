@@ -14,16 +14,8 @@ Marquee is a standalone, native SimKL client for iOS 6.
 
 ## Install from Cydia
 
-Marquee is published in the KMY repo. On the device:
+Marquee is published in my repo: `http://kerthmfy.github.io/repo/`
 
-1. Open Cydia and choose **Sources**.
-2. Tap **Edit**, then **Add**.
-3. Enter `https://kerthmfy.github.io/repo/`, tap **Add Source**, then install
-   Marquee from the KMY repo.
-
-Cydia's apt transport on iOS 6 can fetch this HTTPS source; the device's
-command-line `curl` cannot negotiate the same TLS, so use Cydia for installs
-and updates.
 
 ## Build
 
