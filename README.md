@@ -18,11 +18,12 @@ Marquee is published in the KMY repo. On the device:
 
 1. Open Cydia and choose **Sources**.
 2. Tap **Edit**, then **Add**.
-3. Enter `http://kerthmfy.github.io/repo/`, tap **Add Source**, then install
+3. Enter `https://kerthmfy.github.io/repo/`, tap **Add Source**, then install
    Marquee from the KMY repo.
 
-The source uses HTTP because iOS 6 cannot negotiate GitHub Pages' current TLS.
-The catalog itself is available at `https://kerthmfy.github.io/repo/`.
+Cydia's apt transport on iOS 6 can fetch this HTTPS source; the device's
+command-line `curl` cannot negotiate the same TLS, so use Cydia for installs
+and updates.
 
 ## Build
 
