@@ -57,7 +57,7 @@ files under the app's Library directory.
 -  calendar, DVD releases, trailers, comments, social features, or imports.
 - No push notifications, background sync, widgets, analytics, or crash
   reporting.
--  app icon and launch image are temporary placeholders.
+-  app icon and launch image are temporary placeholders. **i ain't using AI for this man lmao**
 
 
 ## AI disclosure
