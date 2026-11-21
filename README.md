@@ -62,4 +62,4 @@ files under the app's Library directory.
 
 ## AI disclosure
 
-roughly 80-90% of this project were AI assisted with my own supervision and carefully reviewing each of its output. If you're against AI-made tweaks/apps then this is not for you. These projects were just a personal projects of mine and just love to share it with y'all :)
+roughly 70-80% of this project were AI assisted with my own supervision and carefully reviewing each of its output. If you're against AI-made tweaks/apps then this is not for you. These projects were just a personal projects of mine and just love to share it with y'all :)
