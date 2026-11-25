@@ -88,7 +88,7 @@ static const CGFloat MRChipHeightTablet = 32.0;
 
 - (void)drawRect:(CGRect)rect {
     CGRect bounds = CGRectInset(self.bounds, 0.5, 0.5);
-    CGFloat radius = CGRectGetHeight(bounds) / 2.0;
+    CGFloat radius = 5.0;
     UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:bounds
                                                     cornerRadius:radius];
 
@@ -98,13 +98,13 @@ static const CGFloat MRChipHeightTablet = 32.0;
         [path addClip];
 
         NSArray *colors = @[
-            (__bridge id)[UIColor colorWithRed:100.0 / 255.0
-                                        green:150.0 / 255.0
-                                         blue:214.0 / 255.0
+            (__bridge id)[UIColor colorWithRed:112.0 / 255.0
+                                        green:112.0 / 255.0
+                                         blue:120.0 / 255.0
                                         alpha:1.0].CGColor,
-            (__bridge id)[UIColor colorWithRed:40.0 / 255.0
-                                        green:79.0 / 255.0
-                                         blue:130.0 / 255.0
+            (__bridge id)[UIColor colorWithRed:74.0 / 255.0
+                                        green:74.0 / 255.0
+                                         blue:81.0 / 255.0
                                         alpha:1.0].CGColor
         ];
         CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
@@ -116,9 +116,17 @@ static const CGFloat MRChipHeightTablet = 32.0;
                                     0);
         CGGradientRelease(gradient);
         CGColorSpaceRelease(space);
+
+        [[UIColor colorWithWhite:1.0 alpha:0.05] setFill];
+        CGContextFillRect(context, CGRectMake(CGRectGetMinX(bounds) + 1.0,
+                                              CGRectGetMinY(bounds) + 1.0,
+                                              CGRectGetWidth(bounds) - 2.0, 1.0));
         CGContextRestoreGState(context);
+        [[UIColor colorWithWhite:0.0 alpha:0.55] setStroke];
+        path.lineWidth = 1.0;
+        [path stroke];
     } else {
-        [[UIColor whiteColor] setFill];
+        [[MRAppearance raisedFillColor] setFill];
         [path fill];
         [[MRAppearance sep] setStroke];
         path.lineWidth = 1.0;

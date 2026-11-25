@@ -761,6 +761,7 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
 - (void)buildContent {
     UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
     scrollView.backgroundColor = [MRAppearance groupBackground];
+    scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
         UIViewAutoresizingFlexibleHeight;
     scrollView.alwaysBounceVertical = YES;
@@ -936,10 +937,11 @@ static NSString *MRDetailEpisodesText(MRMediaItem *item) {
     [primary setBackgroundImage:[MRAppearance actionButtonImage]
                        forState:UIControlStateHighlighted];
     primary.titleLabel.font = [UIFont boldSystemFontOfSize:15.0];
-    [primary setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    [primary setTitleShadowColor:[UIColor colorWithWhite:0.0 alpha:0.45]
+    [primary setTitleColor:[MRAppearance actionTitleColor]
+                  forState:UIControlStateNormal];
+    [primary setTitleShadowColor:[UIColor clearColor]
                         forState:UIControlStateNormal];
-    primary.titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+    primary.titleLabel.shadowOffset = CGSizeZero;
     [primary addTarget:self
                 action:@selector(primaryActionTapped:)
       forControlEvents:UIControlEventTouchUpInside];

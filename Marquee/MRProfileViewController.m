@@ -162,7 +162,7 @@ static NSString *MRProfileVersionText(void) {
         [self.contentView addSubview:_cardView];
 
         _avatarBackground = [[UIView alloc] initWithFrame:CGRectZero];
-        _avatarBackground.backgroundColor = [MRAppearance link];
+        _avatarBackground.backgroundColor = [MRAppearance avatarColor];
         _avatarBackground.layer.cornerRadius = 28.0;
         _avatarBackground.layer.masksToBounds = YES;
         [_cardView addSubview:_avatarBackground];
@@ -230,11 +230,11 @@ static NSString *MRProfileVersionText(void) {
         [_connectButton setBackgroundImage:[MRAppearance actionButtonImage]
                                   forState:UIControlStateHighlighted];
         _connectButton.titleLabel.font = [UIFont boldSystemFontOfSize:13.0];
-        [_connectButton setTitleColor:[UIColor whiteColor]
+        [_connectButton setTitleColor:[MRAppearance actionTitleColor]
                              forState:UIControlStateNormal];
-        [_connectButton setTitleShadowColor:[UIColor colorWithWhite:0.0 alpha:0.45]
+        [_connectButton setTitleShadowColor:[UIColor clearColor]
                                    forState:UIControlStateNormal];
-        _connectButton.titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+        _connectButton.titleLabel.shadowOffset = CGSizeZero;
         [_connectButton setTitle:@"Connect Simkl" forState:UIControlStateNormal];
         [_connectButton addTarget:self
                            action:@selector(connectTapped:)
@@ -419,6 +419,13 @@ static NSString *MRProfileVersionText(void) {
         }
         _valueLabels = values;
         _captionLabels = captions;
+
+        for (NSInteger index = 1; index <= 3; index++) {
+            UIView *line = [[UIView alloc] initWithFrame:CGRectZero];
+            line.backgroundColor = [MRAppearance sep];
+            line.tag = 7000 + index;
+            [_cardView addSubview:line];
+        }
     }
     return self;
 }
@@ -459,6 +466,14 @@ static NSString *MRProfileVersionText(void) {
         value.frame = CGRectMake(x, 12.0 + (CGFloat)row * 46.0, columnWidth, 24.0);
         caption.frame = CGRectMake(x, 36.0 + (CGFloat)row * 46.0, columnWidth, 14.0);
     }
+
+    CGFloat hairline = 1.0 / [UIScreen mainScreen].scale;
+    UIView *dividerOne = [self.cardView viewWithTag:7001];
+    UIView *dividerTwo = [self.cardView viewWithTag:7002];
+    UIView *dividerThree = [self.cardView viewWithTag:7003];
+    dividerOne.frame = CGRectMake(columnWidth, 0.0, hairline, 108.0);
+    dividerTwo.frame = CGRectMake(columnWidth * 2.0, 0.0, hairline, 108.0);
+    dividerThree.frame = CGRectMake(10.0, 54.0, cardWidth - 20.0, hairline);
 }
 
 @end
@@ -585,7 +600,10 @@ static NSString *MRProfileVersionText(void) {
 @property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UILabel *detailLabel;
 @property (nonatomic, strong) UILabel *chevronLabel;
+@property (nonatomic, assign) BOOL cardFirst;
+@property (nonatomic, assign) BOOL cardLast;
 
+- (void)setCardFirst:(BOOL)first last:(BOOL)last;
 - (void)configureWithTitle:(NSString *)title
                     detail:(NSString *)detail
                destructive:(BOOL)destructive
@@ -604,6 +622,8 @@ static NSString *MRProfileVersionText(void) {
 
         _cardView = [[UIView alloc] initWithFrame:CGRectZero];
         [MRAppearance styleCardView:_cardView first:YES last:YES];
+        _cardFirst = YES;
+        _cardLast = YES;
         [self.contentView addSubview:_cardView];
 
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -644,6 +664,13 @@ static NSString *MRProfileVersionText(void) {
     self.chevronLabel.hidden = !showsMore;
 }
 
+- (void)setCardFirst:(BOOL)first last:(BOOL)last {
+    _cardFirst = first;
+    _cardLast = last;
+    [MRAppearance styleCardView:self.cardView first:first last:last];
+    [self setNeedsLayout];
+}
+
 - (void)layoutSubviews {
     [super layoutSubviews];
 
@@ -652,7 +679,10 @@ static NSString *MRProfileVersionText(void) {
     CGFloat contentWidth = MIN(width, [MRLayout contentMaxWidthForDeviceClass:MRProfileDeviceClass()]);
     CGFloat cardX = (width - contentWidth) / 2.0 + inset;
     CGFloat cardWidth = MAX(0.0, contentWidth - inset * 2.0);
-    self.cardView.frame = CGRectMake(cardX, 2.0, cardWidth, 44.0);
+    self.cardView.frame = CGRectMake(cardX, self.cardFirst ? 2.0 : 0.0, cardWidth,
+                                     CGRectGetHeight(self.contentView.bounds) -
+                                         (self.cardFirst ? 2.0 : 0.0) -
+                                         (self.cardLast ? 2.0 : 0.0));
 
     CGFloat chevronWidth = self.chevronLabel.hidden ? 0.0 : 26.0;
     BOOL showsDetail = !self.detailLabel.hidden;
@@ -712,6 +742,7 @@ static NSString *MRProfileVersionText(void) {
         UIViewAutoresizingFlexibleHeight;
     tableView.backgroundColor = [MRAppearance groupBackground];
     tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    tableView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     tableView.dataSource = self;
     tableView.delegate = self;
     tableView.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
@@ -1081,6 +1112,7 @@ static NSString *MRProfileVersionText(void) {
                         destructive:NO
                            showsMore:NO];
         }
+        [cell setCardFirst:indexPath.row == 0 last:indexPath.row == 2];
         return cell;
     }
 
@@ -1106,6 +1138,7 @@ static NSString *MRProfileVersionText(void) {
                         destructive:NO
                            showsMore:YES];
         }
+        [cell setCardFirst:indexPath.row == 0 last:indexPath.row == 3];
         return cell;
     }
 

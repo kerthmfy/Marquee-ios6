@@ -57,6 +57,7 @@
     scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
         UIViewAutoresizingFlexibleHeight;
     scrollView.backgroundColor = [MRAppearance groupBackground];
+    scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     scrollView.alwaysBounceVertical = YES;
     [self.view addSubview:scrollView];
     self.scrollView = scrollView;
@@ -153,11 +154,10 @@
     [button setBackgroundImage:[MRAppearance actionButtonImage]
                       forState:UIControlStateNormal];
     [button setTitle:title forState:UIControlStateNormal];
-    [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    [button setTitleShadowColor:[UIColor colorWithWhite:0.0 alpha:0.45]
-                       forState:UIControlStateNormal];
+    [button setTitleColor:[MRAppearance actionTitleColor] forState:UIControlStateNormal];
+    [button setTitleShadowColor:[UIColor clearColor] forState:UIControlStateNormal];
     button.titleLabel.font = [UIFont boldSystemFontOfSize:14.0];
-    button.titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+    button.titleLabel.shadowOffset = CGSizeZero;
     [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
     return button;
 }

@@ -44,9 +44,9 @@
     // not with a floating selection capsule.
     for (NSInteger i = 1; i < count; i++) {
         CGFloat x = floor(width * (CGFloat)i / (CGFloat)count);
-        [[UIColor colorWithWhite:1.0 alpha:0.10] setFill];
+        [[UIColor colorWithWhite:1.0 alpha:0.045] setFill];
         CGContextFillRect(ctx, CGRectMake(x - hairline, 1.0, hairline, height - 1.0));
-        [[UIColor colorWithWhite:0.0 alpha:0.65] setFill];
+        [[UIColor colorWithWhite:0.0 alpha:0.70] setFill];
         CGContextFillRect(ctx, CGRectMake(x, 1.0, hairline, height - 1.0));
     }
 }

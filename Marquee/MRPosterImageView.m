@@ -19,15 +19,15 @@ static UIImage *MRPosterPlaceholderImage(void) {
         UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
         CGContextRef context = UIGraphicsGetCurrentContext();
 
-        [[UIColor colorWithWhite:0.91 alpha:1.0] setFill];
+        [[UIColor colorWithWhite:0.16 alpha:1.0] setFill];
         CGContextFillRect(context, CGRectMake(0.0, 0.0, size.width, size.height));
 
         CGRect frame = CGRectMake(50.0, 110.0, 100.0, 80.0);
-        [[UIColor colorWithWhite:0.62 alpha:1.0] setStroke];
+        [[UIColor colorWithWhite:0.34 alpha:1.0] setStroke];
         CGContextSetLineWidth(context, 4.0);
         CGContextStrokeRect(context, frame);
 
-        [[UIColor colorWithWhite:0.72 alpha:1.0] setFill];
+        [[UIColor colorWithWhite:0.28 alpha:1.0] setFill];
         for (NSUInteger index = 0; index < 5; index += 1) {
             CGFloat x = frame.origin.x + 8.0 + (CGFloat)index * 18.0;
             CGContextFillRect(context, CGRectMake(x, frame.origin.y + 6.0, 8.0, 6.0));
@@ -35,7 +35,7 @@ static UIImage *MRPosterPlaceholderImage(void) {
                               CGRectMake(x, CGRectGetMaxY(frame) - 12.0, 8.0, 6.0));
         }
 
-        [[UIColor colorWithWhite:0.84 alpha:1.0] setFill];
+        [[UIColor colorWithWhite:0.22 alpha:1.0] setFill];
         CGContextFillRect(context,
                           CGRectMake(frame.origin.x + 10.0,
                                      frame.origin.y + 16.0,
@@ -56,7 +56,7 @@ static UIImage *MRPosterPlaceholderImage(void) {
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.backgroundColor = [UIColor colorWithWhite:0.91 alpha:1.0];
+        self.backgroundColor = [UIColor colorWithWhite:0.16 alpha:1.0];
         self.contentMode = UIViewContentModeScaleAspectFill;
         self.clipsToBounds = YES;
         self.image = MRPosterPlaceholderImage();

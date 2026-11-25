@@ -106,6 +106,9 @@ static NSString *MRDiagnosticsByteString(unsigned long long bytes) {
     tableView.dataSource = self;
     tableView.delegate = self;
     tableView.backgroundColor = [MRAppearance groupBackground];
+    tableView.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
+    tableView.separatorColor = [MRAppearance sep];
+    tableView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     [self.view addSubview:tableView];
     self.tableView = tableView;
 
@@ -311,6 +314,17 @@ static NSString *MRDiagnosticsByteString(unsigned long long bytes) {
     return nil;
 }
 
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    return [self tableView:tableView titleForHeaderInSection:section] != nil ? 32.0 : 8.0;
+}
+
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    NSString *title = [self tableView:tableView titleForHeaderInSection:section];
+    return title.length > 0
+        ? [MRAppearance groupSectionHeaderViewWithTitle:title]
+        : nil;
+}
+
 - (UITableViewCell *)valueCellWithTitle:(NSString *)title
                                  detail:(NSString *)detail
                               tableView:(UITableView *)tableView {
@@ -319,6 +333,7 @@ static NSString *MRDiagnosticsByteString(unsigned long long bytes) {
     if (cell == nil) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1
                                       reuseIdentifier:identifier];
+        cell.backgroundColor = [MRAppearance paper];
     }
     cell.textLabel.text = title;
     cell.textLabel.font = [MRAppearance bodyFont];
@@ -345,6 +360,7 @@ static NSString *MRDiagnosticsByteString(unsigned long long bytes) {
         if (cell == nil) {
             cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
                                           reuseIdentifier:identifier];
+            cell.backgroundColor = [MRAppearance paper];
         }
 
         NSDictionary *record =
@@ -389,6 +405,7 @@ static NSString *MRDiagnosticsByteString(unsigned long long bytes) {
         if (cell == nil) {
             cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
                                           reuseIdentifier:identifier];
+            cell.backgroundColor = [MRAppearance paper];
         }
         cell.textLabel.font = [UIFont boldSystemFontOfSize:14.0];
         cell.textLabel.textAlignment = NSTextAlignmentCenter;

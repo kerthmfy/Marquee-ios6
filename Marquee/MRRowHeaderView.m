@@ -25,16 +25,18 @@ static const CGFloat MRRowHeaderBadgeSide = 16.0;
         [MRLayout rowHeaderHeightForDeviceClass:device])];
     if (self) {
         self.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-        // Plain table headers pin to the top while scrolling. Use the table's
-        // own background so rows scrolling underneath cannot show through.
-        self.backgroundColor = [MRAppearance groupBackground];
+        // Plain table headers pin to the top while scrolling. Use an opaque
+        // charcoal bar so rows scrolling underneath cannot show through.
+        self.backgroundColor = [MRAppearance chromeBarColor];
         self.opaque = YES;
 
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
         _titleLabel.backgroundColor = [UIColor clearColor];
         _titleLabel.font = [MRAppearance rowHeaderFont];
-        _titleLabel.textColor = [MRAppearance muted];
-        _titleLabel.text = [(title != nil ? title : @"") uppercaseString];
+        _titleLabel.textColor = [UIColor whiteColor];
+        _titleLabel.shadowColor = [UIColor colorWithWhite:0.0 alpha:0.65];
+        _titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+        _titleLabel.text = title != nil ? title : @"";
         _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self addSubview:_titleLabel];
 
@@ -92,16 +94,39 @@ static const CGFloat MRRowHeaderBadgeSide = 16.0;
     if (scale <= 0.0) {
         scale = 1.0;
     }
+    CGFloat hairline = 1.0 / scale;
+    CGFloat width = CGRectGetWidth(self.bounds);
+    CGFloat height = CGRectGetHeight(self.bounds);
 
     CGContextRef ctx = UIGraphicsGetCurrentContext();
     if (ctx == NULL) {
         return;
     }
-    [[MRAppearance sep] setFill];
-    CGContextFillRect(ctx, CGRectMake(0.0,
-                                      CGRectGetHeight(self.bounds) - 1.0 / scale,
-                                      CGRectGetWidth(self.bounds),
-                                      1.0 / scale));
+
+    NSArray *colors = @[
+        (__bridge id)[UIColor colorWithWhite:0.22 alpha:1.0].CGColor,
+        (__bridge id)[UIColor colorWithWhite:0.16 alpha:1.0].CGColor
+    ];
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                        (__bridge CFArrayRef)colors,
+                                                        NULL);
+    CGContextDrawLinearGradient(ctx, gradient,
+                                CGPointMake(0.0, 0.0),
+                                CGPointMake(0.0, height),
+                                0);
+    CGGradientRelease(gradient);
+    CGColorSpaceRelease(space);
+
+    [[UIColor colorWithWhite:1.0 alpha:0.030] setFill];
+    for (CGFloat x = 0.0; x < width; x += 4.0) {
+        CGContextFillRect(ctx, CGRectMake(x, 0.0, 1.0, height));
+    }
+
+    [[UIColor colorWithWhite:1.0 alpha:0.040] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, hairline));
+    [[UIColor colorWithWhite:0.0 alpha:0.72] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, height - hairline, width, hairline));
 }
 
 @end

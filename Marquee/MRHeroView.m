@@ -37,6 +37,8 @@ static const CGFloat MRHeroButtonWidth = 150.0;
         self.backgroundColor = [UIColor clearColor];
         self.layer.cornerRadius = 9.0;
         self.layer.masksToBounds = YES;
+        self.layer.borderWidth = 0.5;
+        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.07].CGColor;
 
         _gradientLayer = [CAGradientLayer layer];
         _gradientLayer.colors = @[
@@ -106,10 +108,11 @@ static const CGFloat MRHeroButtonWidth = 150.0;
         [_actionButton setBackgroundImage:[MRAppearance actionButtonImage]
                                  forState:UIControlStateNormal];
         _actionButton.titleLabel.font = [UIFont boldSystemFontOfSize:13.0];
-        [_actionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        [_actionButton setTitleShadowColor:[UIColor colorWithWhite:0.0 alpha:0.45]
+        [_actionButton setTitleColor:[MRAppearance actionTitleColor]
+                            forState:UIControlStateNormal];
+        [_actionButton setTitleShadowColor:[UIColor clearColor]
                                    forState:UIControlStateNormal];
-        _actionButton.titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+        _actionButton.titleLabel.shadowOffset = CGSizeZero;
         [_actionButton addTarget:self
                           action:@selector(handleAction:)
                 forControlEvents:UIControlEventTouchUpInside];
@@ -127,7 +130,7 @@ static const CGFloat MRHeroButtonWidth = 150.0;
                    eyebrow:(NSString *)eyebrow
                   metadata:(NSString *)metadata
                buttonTitle:(NSString *)buttonTitle {
-    self.eyebrowLabel.text = eyebrow.length > 0 ? [eyebrow uppercaseString] : @"";
+    self.eyebrowLabel.text = eyebrow != nil ? eyebrow : @"";
     self.eyebrowLabel.hidden = eyebrow.length == 0;
 
     self.titleLabel.text = title != nil ? title : @"";

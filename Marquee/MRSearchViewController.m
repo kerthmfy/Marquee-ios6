@@ -74,8 +74,11 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
 @property (nonatomic, strong) UILabel *metaLabel;
 @property (nonatomic, strong) UILabel *ratingLabel;
 @property (nonatomic, strong) UILabel *chevronLabel;
+@property (nonatomic, assign) BOOL cardFirst;
+@property (nonatomic, assign) BOOL cardLast;
 
 - (void)configureWithItem:(MRMediaItem *)item imageCache:(MRImageCache *)imageCache;
+- (void)setCardFirst:(BOOL)first last:(BOOL)last;
 - (void)cancelLoading;
 
 @end
@@ -91,6 +94,8 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
 
         _cardView = [[UIView alloc] initWithFrame:CGRectZero];
         [MRAppearance styleCardView:_cardView first:YES last:YES];
+        _cardFirst = YES;
+        _cardLast = YES;
         [self.contentView addSubview:_cardView];
 
         _posterView = [[MRPosterImageView alloc] initWithImageCache:nil];
@@ -155,6 +160,13 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     [self setNeedsLayout];
 }
 
+- (void)setCardFirst:(BOOL)first last:(BOOL)last {
+    _cardFirst = first;
+    _cardLast = last;
+    [MRAppearance styleCardView:self.cardView first:first last:last];
+    [self setNeedsLayout];
+}
+
 - (void)cancelLoading {
     [self.posterView cancelLoading];
 }
@@ -179,7 +191,10 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     CGFloat maxContent = MIN(width, [MRLayout contentMaxWidthForDeviceClass:device]);
     CGFloat cardX = (width - maxContent) / 2.0 + inset;
     CGFloat cardWidth = MAX(0.0, maxContent - inset * 2.0);
-    self.cardView.frame = CGRectMake(cardX, 4.0, cardWidth, height - 8.0);
+    self.cardView.frame = CGRectMake(cardX, self.cardFirst ? 4.0 : 0.0,
+                                     cardWidth,
+                                     height - (self.cardFirst ? 4.0 : 0.0) -
+                                         (self.cardLast ? 4.0 : 0.0));
     CGFloat cardHeight = CGRectGetHeight(self.cardView.bounds);
 
     CGFloat posterWidth = tablet ? 60.0 : 42.0;
@@ -512,6 +527,7 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
     searchBar.autocapitalizationType = UITextAutocapitalizationTypeNone;
     searchBar.autocorrectionType = UITextAutocorrectionTypeNo;
     searchBar.showsCancelButton = NO;
+    [MRAppearance styleSearchBar:searchBar];
     [self.view addSubview:searchBar];
     self.searchBar = searchBar;
 
@@ -524,6 +540,7 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
                                                           style:UITableViewStylePlain];
     tableView.backgroundColor = [MRAppearance groupBackground];
     tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    tableView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     tableView.dataSource = self;
     tableView.delegate = self;
     [self.view addSubview:tableView];
@@ -1263,6 +1280,8 @@ static NSString *MRSearchCommunityRating(NSDictionary *ratings) {
             }
             [cell configureWithItem:[self.results objectAtIndex:(NSUInteger)indexPath.row]
                          imageCache:self.imageCache];
+            [cell setCardFirst:indexPath.row == 0
+                          last:indexPath.row == (NSInteger)self.results.count - 1];
             return cell;
         }
 

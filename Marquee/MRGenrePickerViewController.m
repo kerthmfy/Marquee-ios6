@@ -63,6 +63,7 @@ static const NSInteger MRGenrePickerTypeCount = 3;
     self.tableView.backgroundColor = [MRAppearance groupBackground];
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
     self.tableView.separatorColor = [MRAppearance sep];
+    self.tableView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     self.tableView.rowHeight = 44.0;
 
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
@@ -326,6 +327,17 @@ static const NSInteger MRGenrePickerTypeCount = 3;
     return [self titleForType:type];
 }
 
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    return [self tableView:tableView titleForHeaderInSection:section] != nil ? 32.0 : 8.0;
+}
+
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    NSString *title = [self tableView:tableView titleForHeaderInSection:section];
+    return title.length > 0
+        ? [MRAppearance groupSectionHeaderViewWithTitle:title]
+        : nil;
+}
+
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     if (section != (NSInteger)self.visibleTypes.count - 1) {
         return nil;
@@ -344,7 +356,7 @@ static const NSInteger MRGenrePickerTypeCount = 3;
                                       reuseIdentifier:identifier];
         cell.textLabel.font = [MRAppearance bodyFont];
         cell.textLabel.textColor = [MRAppearance ink];
-        cell.backgroundColor = [UIColor whiteColor];
+        cell.backgroundColor = [MRAppearance paper];
         cell.selectionStyle = UITableViewCellSelectionStyleBlue;
     }
 

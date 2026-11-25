@@ -3,7 +3,7 @@
 //  Marquee
 //
 //  The drawing behaviour follows Matinee's MTAppearance: iOS 6 store chrome,
-//  a brushed charcoal tab bar, and bordered white cards on pinstripe paper.
+//  a brushed charcoal tab bar, and bordered charcoal cards on pinstripe paper.
 //
 
 #import "MRAppearance.h"
@@ -23,42 +23,6 @@ static const NSInteger MRCardBackgroundTag = 0x4D524344; // 'MRCD'
 static UIColor *MRColor(CGFloat red, CGFloat green, CGFloat blue)
 {
     return [UIColor colorWithRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:1.0];
-}
-
-static UIImage *MRVerticalGradientImage(NSArray *colors, CGFloat height, CGFloat highlightAlpha)
-{
-    CGSize size = CGSizeMake(1.0, height);
-    UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
-    CGContextRef ctx = UIGraphicsGetCurrentContext();
-
-    NSMutableArray *cgColors = [NSMutableArray arrayWithCapacity:colors.count];
-    for (UIColor *color in colors) {
-        [cgColors addObject:(__bridge id)color.CGColor];
-    }
-
-    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGGradientRef gradient = CGGradientCreateWithColors(space,
-                                                        (__bridge CFArrayRef)cgColors,
-                                                        NULL);
-    CGContextDrawLinearGradient(ctx, gradient,
-                                CGPointMake(0.0, 0.0),
-                                CGPointMake(0.0, height),
-                                0);
-    CGGradientRelease(gradient);
-    CGColorSpaceRelease(space);
-
-    if (highlightAlpha > 0.0) {
-        CGContextSetFillColorWithColor(ctx,
-            [UIColor colorWithWhite:1.0 alpha:highlightAlpha].CGColor);
-        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 1.0, 1.0));
-        CGContextSetFillColorWithColor(ctx,
-            [UIColor colorWithWhite:1.0 alpha:highlightAlpha * 0.18].CGColor);
-        CGContextFillRect(ctx, CGRectMake(0.0, 1.0, 1.0, 1.0));
-    }
-
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    return image;
 }
 
 static void MRDrawGradientGlyph(CGContextRef ctx, UIBezierPath *path, BOOL stroked,
@@ -137,16 +101,15 @@ static UIImage *MRBarButtonImage(CGFloat width, BOOL back, BOOL highlighted)
 
     NSArray *colors = highlighted
         ? @[
-            (__bridge id)MRColor(77, 107, 143).CGColor,
-            (__bridge id)MRColor(59, 89, 120).CGColor
+            (__bridge id)MRColor(101, 101, 108).CGColor,
+            (__bridge id)MRColor(66, 66, 72).CGColor
           ]
         : @[
-            (__bridge id)MRColor(138, 166, 199).CGColor,
-            (__bridge id)MRColor(89, 122, 163).CGColor,
-            (__bridge id)MRColor(71, 107, 145).CGColor,
-            (__bridge id)MRColor(56, 89, 125).CGColor
+            (__bridge id)MRColor(94, 94, 101).CGColor,
+            (__bridge id)MRColor(66, 66, 72).CGColor,
+            (__bridge id)MRColor(50, 50, 56).CGColor
           ];
-    CGFloat normalLocations[] = { 0.0, 0.49, 0.50, 1.0 };
+    CGFloat normalLocations[] = { 0.0, 0.52, 1.0 };
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
     CGGradientRef gradient = CGGradientCreateWithColors(space,
                                                         (__bridge CFArrayRef)colors,
@@ -159,11 +122,11 @@ static UIImage *MRBarButtonImage(CGFloat width, BOOL back, BOOL highlighted)
     CGColorSpaceRelease(space);
 
     CGContextSetFillColorWithColor(ctx,
-        [UIColor colorWithWhite:1.0 alpha:0.28].CGColor);
+        [UIColor colorWithWhite:1.0 alpha:0.22].CGColor);
     CGContextFillRect(ctx, CGRectMake(3.0, 1.5, width - 6.0, 1.0));
     CGContextRestoreGState(ctx);
 
-    CGContextSetStrokeColorWithColor(ctx, MRColor(33, 56, 79).CGColor);
+    CGContextSetStrokeColorWithColor(ctx, MRColor(22, 22, 25).CGColor);
     CGContextSetLineWidth(ctx, 1.0);
     CGContextAddPath(ctx, path.CGPath);
     CGContextStrokePath(ctx);
@@ -171,6 +134,88 @@ static UIImage *MRBarButtonImage(CGFloat width, BOOL back, BOOL highlighted)
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     return image;
+}
+
+static UIImage *MRSegmentImage(BOOL selected, BOOL highlighted)
+{
+    CGFloat height = 29.0;
+    CGSize size = CGSizeMake(12.0, height);
+    UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    NSArray *colors = nil;
+    if (selected) {
+        colors = @[
+            (__bridge id)MRColor(108, 108, 116).CGColor,
+            (__bridge id)MRColor(79, 79, 86).CGColor,
+            (__bridge id)MRColor(62, 62, 68).CGColor
+        ];
+    } else if (highlighted) {
+        colors = @[
+            (__bridge id)MRColor(80, 80, 87).CGColor,
+            (__bridge id)MRColor(58, 58, 64).CGColor
+        ];
+    } else {
+        colors = @[
+            (__bridge id)MRColor(56, 56, 62).CGColor,
+            (__bridge id)MRColor(43, 43, 48).CGColor
+        ];
+    }
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                        (__bridge CFArrayRef)colors,
+                                                        NULL);
+    CGContextDrawLinearGradient(ctx, gradient,
+                                CGPointMake(0.0, 0.0),
+                                CGPointMake(0.0, height),
+                                0);
+    CGGradientRelease(gradient);
+    CGColorSpaceRelease(space);
+
+    [[UIColor colorWithWhite:1.0 alpha:selected ? 0.06 : 0.035] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 12.0, 1.0));
+    [[UIColor colorWithWhite:0.0 alpha:0.45] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, height - 1.0, 12.0, 1.0));
+
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(4.0, 5.0, 4.0, 5.0)];
+}
+
+static UIImage *MRSegmentDividerImage(void)
+{
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(1.0, 29.0), YES, 0.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    [[UIColor colorWithWhite:0.0 alpha:0.55] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 1.0, 29.0));
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+static UIImage *MRSearchFieldImage(void)
+{
+    CGSize size = CGSizeMake(24.0, 30.0);
+    UIGraphicsBeginImageContextWithOptions(size, NO, 0.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    CGRect rect = CGRectMake(0.5, 0.5, 23.0, 29.0);
+    UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:15.0];
+
+    CGContextSaveGState(ctx);
+    [path addClip];
+    [[UIColor colorWithWhite:0.985 alpha:1.0] setFill];
+    CGContextFillRect(ctx, rect);
+    [[UIColor colorWithWhite:1.0 alpha:0.9] setFill];
+    CGContextFillRect(ctx, CGRectMake(1.0, 1.0, 22.0, 1.0));
+    CGContextRestoreGState(ctx);
+
+    [[UIColor colorWithWhite:0.0 alpha:0.45] setStroke];
+    path.lineWidth = 1.0;
+    [path stroke];
+
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(14.0, 14.0, 14.0, 14.0)];
 }
 
 #pragma mark - Card background
@@ -321,17 +366,17 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     UIBezierPath *shape = MRCardShapePath(card, self.first, self.last);
     CGContextSaveGState(ctx);
     [shape addClip];
-    [[UIColor whiteColor] setFill];
+    [[MRAppearance cardFillColor] setFill];
     CGContextFillRect(ctx, card);
     CGContextRestoreGState(ctx);
 
     UIBezierPath *outline = MRCardOutlinePath(card, self.first, self.last);
-    [MRColor(166, 173, 181) setStroke];
+    [[MRAppearance sep] setStroke];
     outline.lineWidth = hairline;
     [outline stroke];
 
     if (!self.last) {
-        CGContextSetFillColorWithColor(ctx, MRColor(213, 216, 220).CGColor);
+        CGContextSetFillColorWithColor(ctx, [[MRAppearance sep] CGColor]);
         CGContextFillRect(ctx, CGRectMake(CGRectGetMinX(card),
                                           CGRectGetMaxY(self.bounds) - hairline,
                                           CGRectGetWidth(card),
@@ -340,7 +385,7 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 
     if (self.first) {
         CGContextSetFillColorWithColor(ctx,
-            [UIColor colorWithWhite:1.0 alpha:0.65].CGColor);
+            [UIColor colorWithWhite:1.0 alpha:0.04].CGColor);
         CGContextFillRect(ctx, CGRectMake(CGRectGetMinX(card) + 1.0,
                                           CGRectGetMinY(card) + 1.0,
                                           CGRectGetWidth(card) - 2.0,
@@ -369,23 +414,16 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     if (self) {
         self.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         _pinstripe = pinstripe;
-        self.backgroundColor = pinstripe
-            ? [UIColor colorWithPatternImage:[MRAppearance pinstripeImage]]
-            : [UIColor clearColor];
-        self.opaque = NO;
+        self.backgroundColor = [MRAppearance chromeBarColor];
+        self.opaque = YES;
 
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
         _titleLabel.backgroundColor = [UIColor clearColor];
-        _titleLabel.text = [title uppercaseString];
-        if (pinstripe) {
-            _titleLabel.font = [MRAppearance groupTitleFont];
-            _titleLabel.textColor = MRColor(77, 87, 99);
-            _titleLabel.shadowColor = [UIColor colorWithWhite:1.0 alpha:0.72];
-            _titleLabel.shadowOffset = CGSizeMake(0.0, 1.0);
-        } else {
-            _titleLabel.font = [MRAppearance rowHeaderFont];
-            _titleLabel.textColor = [MRAppearance muted];
-        }
+        _titleLabel.text = title != nil ? title : @"";
+        _titleLabel.font = [MRAppearance rowHeaderFont];
+        _titleLabel.textColor = [UIColor whiteColor];
+        _titleLabel.shadowColor = [UIColor colorWithWhite:0.0 alpha:0.65];
+        _titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
         [self addSubview:_titleLabel];
     }
     return self;
@@ -403,52 +441,81 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 
 - (void)drawRect:(CGRect)rect
 {
-    if (self.pinstripe) {
-        return;
-    }
-
     CGFloat scale = self.contentScaleFactor;
     if (scale <= 0.0) {
         scale = 1.0;
     }
+    CGFloat hairline = 1.0 / scale;
     CGContextRef ctx = UIGraphicsGetCurrentContext();
-    [[MRAppearance sep] setFill];
-    CGContextFillRect(ctx, CGRectMake(0.0,
-                                      CGRectGetHeight(self.bounds) - 1.0 / scale,
-                                      CGRectGetWidth(self.bounds),
-                                      1.0 / scale));
+    CGFloat width = CGRectGetWidth(self.bounds);
+    CGFloat height = CGRectGetHeight(self.bounds);
+
+    NSMutableArray *colors = [NSMutableArray array];
+    [colors addObject:(__bridge id)MRColor(56, 56, 61).CGColor];
+    [colors addObject:(__bridge id)MRColor(44, 44, 48).CGColor];
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                        (__bridge CFArrayRef)colors,
+                                                        NULL);
+    CGContextDrawLinearGradient(ctx, gradient,
+                                CGPointMake(0.0, 0.0),
+                                CGPointMake(0.0, height),
+                                0);
+    CGGradientRelease(gradient);
+    CGColorSpaceRelease(space);
+
+    if (self.pinstripe) {
+        [[UIColor colorWithWhite:1.0 alpha:0.025] setFill];
+        for (CGFloat x = 0.0; x < width; x += 4.0) {
+            CGContextFillRect(ctx, CGRectMake(x, 0.0, 1.0, height));
+        }
+    }
+
+    [[UIColor colorWithWhite:1.0 alpha:0.040] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, hairline));
+    [[UIColor colorWithWhite:0.0 alpha:0.70] setFill];
+    CGContextFillRect(ctx, CGRectMake(0.0, height - hairline, width, hairline));
 }
 
 @end
 
 #pragma mark - Appearance
 
+@interface MRAppearance ()
++ (UIImage *)backgroundImage;
+@end
+
 @implementation MRAppearance
 
-+ (UIColor *)paper           { return MRColor(244, 245, 247); }
-+ (UIColor *)groupBackground { return MRColor(200, 204, 210); }
-+ (UIColor *)sep             { return MRColor(201, 204, 209); }
-+ (UIColor *)ink             { return MRColor(33, 33, 38); }
-+ (UIColor *)muted           { return MRColor(122, 122, 128); }
-+ (UIColor *)placeholder     { return MRColor(231, 233, 237); }
-+ (UIColor *)link            { return MRColor(41, 89, 143); }
-+ (UIColor *)navigationTint  { return MRColor(41, 71, 107); }
-+ (UIColor *)green           { return MRColor(0, 199, 83); }
-+ (UIColor *)starEmpty       { return MRColor(209, 214, 219); }
-+ (UIColor *)starColor        { return MRColor(191, 146, 22); }
++ (UIColor *)paper           { return MRColor(28, 28, 31); }
++ (UIColor *)groupBackground { return [UIColor colorWithPatternImage:[self backgroundImage]]; }
++ (UIColor *)sep             { return MRColor(44, 44, 49); }
++ (UIColor *)ink             { return MRColor(242, 242, 245); }
++ (UIColor *)muted           { return MRColor(157, 157, 165); }
++ (UIColor *)placeholder     { return MRColor(43, 43, 48); }
++ (UIColor *)link            { return MRColor(114, 169, 255); }
++ (UIColor *)navigationTint  { return MRColor(114, 169, 255); }
++ (UIColor *)green           { return MRColor(127, 214, 150); }
++ (UIColor *)starEmpty       { return MRColor(96, 96, 104); }
++ (UIColor *)starColor       { return MRColor(240, 201, 74); }
++ (UIColor *)cardFillColor   { return MRColor(35, 35, 39); }
++ (UIColor *)raisedFillColor { return MRColor(51, 51, 56); }
++ (UIColor *)chromeBarColor  { return MRColor(39, 39, 43); }
++ (UIColor *)avatarColor     { return MRColor(74, 92, 108); }
++ (UIColor *)actionTitleColor { return MRColor(58, 44, 8); }
 
-+ (UIColor *)watchingColor   { return MRColor(45, 125, 210); }
-+ (UIColor *)planColor       { return MRColor(138, 143, 152); }
-+ (UIColor *)completedColor  { return MRColor(31, 157, 85); }
-+ (UIColor *)holdColor       { return MRColor(201, 138, 27); }
-+ (UIColor *)droppedColor    { return MRColor(192, 57, 43); }
-+ (UIColor *)bannerNeutralColor { return MRColor(92, 99, 108); }
-+ (UIColor *)bannerPendingColor { return MRColor(84, 103, 128); }
-+ (UIColor *)bannerWarningColor { return MRColor(191, 128, 24); }
-+ (UIColor *)bannerErrorColor   { return MRColor(176, 46, 36); }
-+ (UIColor *)toastColor         { return MRColor(34, 36, 40); }
-+ (UIColor *)progressTrackColor { return [UIColor colorWithWhite:0.0 alpha:0.42]; }
-+ (UIColor *)progressFillColor  { return MRColor(45, 125, 210); }
++ (UIColor *)watchingColor   { return MRColor(114, 169, 255); }
++ (UIColor *)planColor       { return MRColor(160, 160, 168); }
++ (UIColor *)completedColor  { return MRColor(127, 214, 150); }
++ (UIColor *)holdColor       { return MRColor(230, 182, 76); }
++ (UIColor *)droppedColor    { return MRColor(255, 125, 114); }
++ (UIColor *)bannerNeutralColor { return MRColor(58, 58, 64); }
++ (UIColor *)bannerPendingColor { return MRColor(52, 82, 111); }
++ (UIColor *)bannerWarningColor { return MRColor(138, 101, 24); }
++ (UIColor *)bannerErrorColor   { return MRColor(138, 47, 42); }
++ (UIColor *)toastColor         { return MRColor(43, 43, 48); }
++ (UIColor *)progressTrackColor { return [UIColor colorWithWhite:0.0 alpha:0.72]; }
++ (UIColor *)progressFillColor  { return MRColor(114, 169, 255); }
 
 + (UIColor *)statusColorForWatchStatus:(MRWatchStatus)status
 {
@@ -478,12 +545,37 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 {
     static UIImage *image = nil;
     if (!image) {
-        image = MRVerticalGradientImage(@[
-            MRColor(107, 143, 179),
-            MRColor(92, 128, 166),
-            MRColor(71, 107, 145),
-            MRColor(58, 92, 128)
-        ], MRNavigationBarHeight, 0.40);
+        CGSize size = CGSizeMake(1.0, MRNavigationBarHeight);
+        UIGraphicsBeginImageContextWithOptions(size, YES, 0.0);
+        CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+        NSArray *colors = @[
+            (__bridge id)MRColor(58, 58, 63).CGColor,
+            (__bridge id)MRColor(47, 47, 52).CGColor,
+            (__bridge id)MRColor(35, 35, 39).CGColor
+        ];
+        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+        CGGradientRef gradient = CGGradientCreateWithColors(space,
+                                                            (__bridge CFArrayRef)colors,
+                                                            NULL);
+        CGContextDrawLinearGradient(ctx, gradient,
+                                    CGPointMake(0.0, 0.0),
+                                    CGPointMake(0.0, MRNavigationBarHeight),
+                                    0);
+        CGGradientRelease(gradient);
+        CGColorSpaceRelease(space);
+
+        [[UIColor colorWithWhite:0.0 alpha:0.92] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 1.0, 1.0));
+        [[UIColor colorWithWhite:1.0 alpha:0.10] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, 1.0, 1.0, 1.0));
+        [[UIColor colorWithWhite:1.0 alpha:0.09] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, MRNavigationBarHeight - 2.0, 1.0, 1.0));
+        [[UIColor colorWithWhite:0.0 alpha:0.88] setFill];
+        CGContextFillRect(ctx, CGRectMake(0.0, MRNavigationBarHeight - 1.0, 1.0, 1.0));
+
+        image = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
     }
     return image;
 }
@@ -499,11 +591,11 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     CGContextRef ctx = UIGraphicsGetCurrentContext();
 
     NSArray *colors = @[
-        (__bridge id)MRColor(84, 84, 87).CGColor,
-        (__bridge id)MRColor(50, 50, 53).CGColor,
-        (__bridge id)MRColor(29, 29, 32).CGColor
+        (__bridge id)MRColor(56, 56, 61).CGColor,
+        (__bridge id)MRColor(35, 35, 39).CGColor,
+        (__bridge id)MRColor(17, 17, 19).CGColor
     ];
-    CGFloat locations[] = { 0.0, 0.52, 1.0 };
+    CGFloat locations[] = { 0.0, 0.55, 1.0 };
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
     CGGradientRef gradient = CGGradientCreateWithColors(space,
                                                         (__bridge CFArrayRef)colors,
@@ -519,7 +611,7 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     // highlight instead of a soft floating edge.
     [[UIColor colorWithWhite:0.0 alpha:0.88] setFill];
     CGContextFillRect(ctx, CGRectMake(0.0, 0.0, width, 1.0));
-    [[UIColor colorWithWhite:1.0 alpha:0.10] setFill];
+    [[UIColor colorWithWhite:1.0 alpha:0.05] setFill];
     CGContextFillRect(ctx, CGRectMake(0.0, 1.0, width, 1.0));
 
     // Faint brushed-metal columns keep the bar from reading as flat black.
@@ -550,9 +642,9 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     CGContextRef ctx = UIGraphicsGetCurrentContext();
 
     NSArray *colors = @[
-        (__bridge id)MRColor(104, 104, 108).CGColor,
-        (__bridge id)MRColor(62, 62, 66).CGColor,
-        (__bridge id)MRColor(38, 38, 42).CGColor
+        (__bridge id)MRColor(87, 87, 94).CGColor,
+        (__bridge id)MRColor(55, 55, 61).CGColor,
+        (__bridge id)MRColor(38, 38, 43).CGColor
     ];
     CGFloat locations[] = { 0.0, 0.55, 1.0 };
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
@@ -568,7 +660,7 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 
     [[UIColor colorWithWhite:0.0 alpha:0.78] setFill];
     CGContextFillRect(ctx, CGRectMake(0.0, 0.0, selectionWidth, 1.0));
-    [[UIColor colorWithWhite:1.0 alpha:0.18] setFill];
+    [[UIColor colorWithWhite:1.0 alpha:0.06] setFill];
     CGContextFillRect(ctx, CGRectMake(0.0, 1.0, selectionWidth, 1.0));
     [[UIColor colorWithWhite:0.0 alpha:0.55] setFill];
     CGContextFillRect(ctx, CGRectMake(0.0, MRTabBarHeight - 1.0, selectionWidth, 1.0));
@@ -581,20 +673,27 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     return image;
 }
 
-+ (UIImage *)pinstripeImage
++ (UIImage *)backgroundImage
 {
     static UIImage *image = nil;
     if (!image) {
-        UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 1.0), YES, 0.0);
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(4.0, 1.0), YES, 1.0);
         CGContextRef ctx = UIGraphicsGetCurrentContext();
-        [[self groupBackground] setFill];
+        [MRColor(23, 23, 26) setFill];
         CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 4.0, 1.0));
-        [[UIColor colorWithWhite:1.0 alpha:0.34] setFill];
+        [[UIColor colorWithWhite:1.0 alpha:0.030] setFill];
         CGContextFillRect(ctx, CGRectMake(0.0, 0.0, 1.0, 1.0));
+        [[UIColor colorWithWhite:1.0 alpha:0.012] setFill];
+        CGContextFillRect(ctx, CGRectMake(2.0, 0.0, 1.0, 1.0));
         image = UIGraphicsGetImageFromCurrentImageContext();
         UIGraphicsEndImageContext();
     }
     return image;
+}
+
++ (UIImage *)pinstripeImage
+{
+    return [self backgroundImage];
 }
 
 + (UIImage *)tabIcon:(NSInteger)index selected:(BOOL)selected
@@ -603,8 +702,8 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     CGContextRef ctx = UIGraphicsGetCurrentContext();
 
     NSArray *colors = selected
-        ? @[ MRColor(36, 191, 255), MRColor(0, 107, 209) ]
-        : @[ MRColor(204, 204, 209), MRColor(117, 117, 125) ];
+        ? @[ MRColor(255, 217, 100), MRColor(211, 164, 42) ]
+        : @[ MRColor(224, 224, 230), MRColor(142, 142, 150) ];
 
     if (index == 0) {
         UIBezierPath *star = MRStarPath(12.5, 17.0, 9.0, 3.9);
@@ -661,22 +760,29 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
         CGContextSaveGState(ctx);
         [path addClip];
         NSArray *colors = @[
-            (__bridge id)MRColor(112, 156, 204).CGColor,
-            (__bridge id)MRColor(51, 97, 140).CGColor
+            (__bridge id)MRColor(244, 213, 108).CGColor,
+            (__bridge id)MRColor(223, 183, 77).CGColor,
+            (__bridge id)MRColor(198, 154, 46).CGColor
         ];
+        CGFloat locations[] = { 0.0, 0.52, 1.0 };
         CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
         CGGradientRef gradient = CGGradientCreateWithColors(space,
                                                             (__bridge CFArrayRef)colors,
-                                                            NULL);
+                                                            locations);
         CGContextDrawLinearGradient(ctx, gradient,
                                     CGPointMake(0.0, 0.0),
                                     CGPointMake(0.0, 38.0),
                                     0);
         CGGradientRelease(gradient);
         CGColorSpaceRelease(space);
+
+        [[UIColor colorWithWhite:1.0 alpha:0.42] setFill];
+        CGContextFillRect(ctx, CGRectMake(3.0, 1.0, 18.0, 1.0));
+        CGContextSetFillColorWithColor(ctx, MRColor(90, 68, 14).CGColor);
+        CGContextFillRect(ctx, CGRectMake(3.0, 36.0, 18.0, 1.0));
         CGContextRestoreGState(ctx);
 
-        CGContextSetStrokeColorWithColor(ctx, MRColor(36, 61, 89).CGColor);
+        CGContextSetStrokeColorWithColor(ctx, MRColor(128, 98, 24).CGColor);
         CGContextSetLineWidth(ctx, 1.0);
         CGContextAddPath(ctx, path.CGPath);
         CGContextStrokePath(ctx);
@@ -735,6 +841,9 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
 
     [bar setBackgroundImage:[self navigationBarImage]
               forBarMetrics:UIBarMetricsDefault];
+    bar.barStyle = UIBarStyleBlack;
+    bar.translucent = NO;
+    bar.tintColor = [UIColor colorWithWhite:0.32 alpha:1.0];
 
     NSDictionary *attributes = @{
         UITextAttributeTextColor: [UIColor whiteColor],
@@ -808,6 +917,70 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
     [chrome setNeedsDisplay];
 }
 
++ (void)styleSegmentedControl:(UISegmentedControl *)control
+{
+    if (!control) {
+        return;
+    }
+
+    [control setBackgroundImage:MRSegmentImage(NO, NO)
+                       forState:UIControlStateNormal
+                    barMetrics:UIBarMetricsDefault];
+    [control setBackgroundImage:MRSegmentImage(NO, YES)
+                       forState:UIControlStateHighlighted
+                    barMetrics:UIBarMetricsDefault];
+    [control setBackgroundImage:MRSegmentImage(YES, NO)
+                       forState:UIControlStateSelected
+                    barMetrics:UIBarMetricsDefault];
+    [control setBackgroundImage:MRSegmentImage(YES, NO)
+                       forState:UIControlStateSelected | UIControlStateHighlighted
+                    barMetrics:UIBarMetricsDefault];
+    UIImage *divider = MRSegmentDividerImage();
+    [control setDividerImage:divider
+         forLeftSegmentState:UIControlStateNormal
+           rightSegmentState:UIControlStateNormal
+                  barMetrics:UIBarMetricsDefault];
+    [control setDividerImage:divider
+         forLeftSegmentState:UIControlStateSelected
+           rightSegmentState:UIControlStateNormal
+                  barMetrics:UIBarMetricsDefault];
+    [control setDividerImage:divider
+         forLeftSegmentState:UIControlStateNormal
+           rightSegmentState:UIControlStateSelected
+                  barMetrics:UIBarMetricsDefault];
+
+    NSDictionary *ordinary = @{
+        UITextAttributeTextColor: [UIColor colorWithWhite:0.84 alpha:1.0],
+        UITextAttributeTextShadowColor: [UIColor colorWithWhite:0.0 alpha:0.55],
+        UITextAttributeTextShadowOffset: [NSValue valueWithUIOffset:UIOffsetMake(0.0, -1.0)],
+        UITextAttributeFont: [UIFont boldSystemFontOfSize:12.0]
+    };
+    NSDictionary *active = @{
+        UITextAttributeTextColor: [UIColor whiteColor],
+        UITextAttributeTextShadowColor: [UIColor colorWithWhite:0.0 alpha:0.55],
+        UITextAttributeTextShadowOffset: [NSValue valueWithUIOffset:UIOffsetMake(0.0, -1.0)],
+        UITextAttributeFont: [UIFont boldSystemFontOfSize:12.0]
+    };
+    [control setTitleTextAttributes:ordinary forState:UIControlStateNormal];
+    [control setTitleTextAttributes:active forState:UIControlStateSelected];
+    [control setTitleTextAttributes:active forState:UIControlStateHighlighted];
+}
+
++ (void)styleSearchBar:(UISearchBar *)searchBar
+{
+    if (!searchBar) {
+        return;
+    }
+
+    [searchBar setBackgroundImage:[self navigationBarImage]];
+    [searchBar setSearchFieldBackgroundImage:MRSearchFieldImage()
+                                    forState:UIControlStateNormal];
+    [searchBar setSearchFieldBackgroundImage:MRSearchFieldImage()
+                                    forState:UIControlStateHighlighted];
+    searchBar.tintColor = [UIColor colorWithWhite:0.32 alpha:1.0];
+    searchBar.barStyle = UIBarStyleBlack;
+}
+
 + (void)styleCardView:(UIView *)view first:(BOOL)first last:(BOOL)last
 {
     if (!view) {
@@ -840,10 +1013,10 @@ static UIBezierPath *MRCardOutlinePath(CGRect rect, BOOL first, BOOL last)
         return;
     }
 
-    view.layer.cornerRadius = 4.0;
+    view.layer.cornerRadius = 3.5;
     view.layer.masksToBounds = YES;
     view.layer.borderWidth = 0.5;
-    view.layer.borderColor = [UIColor colorWithWhite:0.0 alpha:0.18].CGColor;
+    view.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.08].CGColor;
 }
 
 + (UIView *)sectionHeaderViewWithTitle:(NSString *)title

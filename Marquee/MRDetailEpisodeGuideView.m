@@ -583,7 +583,7 @@ static CGFloat MRGuideTextHeight(NSString *text, UIFont *font, CGFloat width,
     for (UIButton *chip in self.seasonChips) {
         NSInteger season = [(NSNumber *)self.seasonNumbers[(NSUInteger)chip.tag] integerValue];
         BOOL chosen = season == self.selectedSeason;
-        chip.backgroundColor = chosen ? [MRAppearance link] : [UIColor whiteColor];
+        chip.backgroundColor = chosen ? [MRAppearance link] : [MRAppearance raisedFillColor];
         chip.layer.borderColor = chosen
             ? [UIColor clearColor].CGColor
             : [MRAppearance sep].CGColor;

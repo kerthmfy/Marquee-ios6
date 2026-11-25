@@ -56,8 +56,11 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
 @property (nonatomic, strong) UILabel *ratingLabel;
 @property (nonatomic, strong) UILabel *nextLabel;
 @property (nonatomic, strong) UILabel *chevronLabel;
+@property (nonatomic, assign) BOOL cardFirst;
+@property (nonatomic, assign) BOOL cardLast;
 
 - (void)configureWithItem:(MRMediaItem *)item imageCache:(MRImageCache *)imageCache;
+- (void)setCardFirst:(BOOL)first last:(BOOL)last;
 - (void)cancelLoading;
 + (CGFloat)heightForDeviceClass:(MRDeviceClass)device;
 
@@ -79,6 +82,8 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
         _cardView = [[UIView alloc] initWithFrame:CGRectZero];
         _cardView.backgroundColor = [UIColor clearColor];
         [MRAppearance styleCardView:_cardView first:YES last:YES];
+        _cardFirst = YES;
+        _cardLast = YES;
         [self.contentView addSubview:_cardView];
 
         _posterView = [[MRPosterImageView alloc] initWithImageCache:nil];
@@ -160,6 +165,13 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     [self setNeedsLayout];
 }
 
+- (void)setCardFirst:(BOOL)first last:(BOOL)last {
+    _cardFirst = first;
+    _cardLast = last;
+    [MRAppearance styleCardView:self.cardView first:first last:last];
+    [self setNeedsLayout];
+}
+
 - (NSString *)nextEpisodeTextForItem:(MRMediaItem *)item {
     if (item.nextEpisodeSeason > 0 && item.nextEpisodeNumber > 0) {
         NSString *code = [NSString stringWithFormat:@"S%ldE%ld",
@@ -198,9 +210,10 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
     CGFloat width = CGRectGetWidth(self.contentView.bounds);
     CGFloat height = CGRectGetHeight(self.contentView.bounds);
 
-    self.cardView.frame = CGRectMake(side, 4.0,
+    self.cardView.frame = CGRectMake(side, self.cardFirst ? 4.0 : 0.0,
                                      width - side * 2.0,
-                                     height - 8.0);
+                                     height - (self.cardFirst ? 4.0 : 0.0) -
+                                         (self.cardLast ? 4.0 : 0.0));
     CGFloat cardWidth = CGRectGetWidth(self.cardView.bounds);
     CGFloat cardHeight = CGRectGetHeight(self.cardView.bounds);
 
@@ -398,6 +411,7 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
         [[UISegmentedControl alloc] initWithItems:@[ @"All", @"Movies", @"TV", @"Anime" ]];
     typeControl.segmentedControlStyle = UISegmentedControlStylePlain;
     typeControl.selectedSegmentIndex = 0;
+    [MRAppearance styleSegmentedControl:typeControl];
     [typeControl addTarget:self
                     action:@selector(typeChanged:)
           forControlEvents:UIControlEventValueChanged];
@@ -421,6 +435,7 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
                                                           style:UITableViewStylePlain];
     tableView.backgroundColor = [MRAppearance groupBackground];
     tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    tableView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     tableView.dataSource = self;
     tableView.delegate = self;
     tableView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
@@ -1009,6 +1024,8 @@ static CGFloat MRLibraryCardSideInset(MRDeviceClass device) {
         }
         MRMediaItem *item = [self.visibleItems objectAtIndex:(NSUInteger)indexPath.row];
         [cell configureWithItem:item imageCache:self.imageCache];
+        [cell setCardFirst:indexPath.row == 0
+                      last:indexPath.row == (NSInteger)self.visibleItems.count - 1];
         return cell;
     }
 

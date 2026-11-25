@@ -41,10 +41,11 @@
         [_actionButton setBackgroundImage:[MRAppearance actionButtonImage]
                                  forState:UIControlStateNormal];
         _actionButton.titleLabel.font = [UIFont boldSystemFontOfSize:13.0];
-        [_actionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        [_actionButton setTitleShadowColor:[UIColor colorWithWhite:0.0 alpha:0.45]
+        [_actionButton setTitleColor:[MRAppearance actionTitleColor]
+                            forState:UIControlStateNormal];
+        [_actionButton setTitleShadowColor:[UIColor clearColor]
                                   forState:UIControlStateNormal];
-        _actionButton.titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+        _actionButton.titleLabel.shadowOffset = CGSizeZero;
         [_actionButton setTitle:(actionTitle != nil ? actionTitle : @"")
                        forState:UIControlStateNormal];
         _actionButton.hidden = !_hasAction;

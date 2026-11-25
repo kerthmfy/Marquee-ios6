@@ -22,6 +22,11 @@
 + (UIColor *)green;
 + (UIColor *)starEmpty;
 + (UIColor *)starColor;
++ (UIColor *)cardFillColor;
++ (UIColor *)raisedFillColor;
++ (UIColor *)chromeBarColor;
++ (UIColor *)avatarColor;
++ (UIColor *)actionTitleColor;
 + (UIColor *)watchingColor;
 + (UIColor *)planColor;
 + (UIColor *)completedColor;
@@ -62,6 +67,8 @@
 + (void)styleNavigationBar:(UINavigationBar *)bar;
 + (void)styleTabBar:(UITabBar *)tabBar;
 + (void)styleTabBarItem:(UITabBarItem *)item index:(NSInteger)index;
++ (void)styleSegmentedControl:(UISegmentedControl *)control;
++ (void)styleSearchBar:(UISearchBar *)searchBar;
 
 // Attaches the bordered white card background behind the view's content.
 + (void)styleCardView:(UIView *)view first:(BOOL)first last:(BOOL)last;

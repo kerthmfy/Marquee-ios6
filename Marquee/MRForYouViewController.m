@@ -437,11 +437,11 @@ static NSString *MRForYouHeroMetadata(MRMediaItem *item) {
         [_searchButton setBackgroundImage:[MRAppearance actionButtonImage]
                                  forState:UIControlStateHighlighted];
         _searchButton.titleLabel.font = [UIFont boldSystemFontOfSize:13.0];
-        [_searchButton setTitleColor:[UIColor whiteColor]
+        [_searchButton setTitleColor:[MRAppearance actionTitleColor]
                             forState:UIControlStateNormal];
-        [_searchButton setTitleShadowColor:[UIColor colorWithWhite:0.0 alpha:0.45]
+        [_searchButton setTitleShadowColor:[UIColor clearColor]
                                   forState:UIControlStateNormal];
-        _searchButton.titleLabel.shadowOffset = CGSizeMake(0.0, -1.0);
+        _searchButton.titleLabel.shadowOffset = CGSizeZero;
         [_searchButton setTitle:@"Search" forState:UIControlStateNormal];
         [_searchButton addTarget:self
                           action:@selector(searchTapped:)
@@ -617,6 +617,7 @@ static NSString *MRForYouHeroMetadata(MRMediaItem *item) {
         UIViewAutoresizingFlexibleHeight;
     tableView.backgroundColor = [MRAppearance groupBackground];
     tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    tableView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
     tableView.dataSource = self;
     tableView.delegate = self;
     tableView.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
