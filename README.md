@@ -8,13 +8,14 @@ Marquee is a standalone, native SimKL client for iOS 6.
   <img src="screenshots/attachment-0.png" width="220" alt="profile bar">
 </p>
 
-## Platform support
 
 - iOS 6.0 or later, armv7.
 
 ## Install from Cydia
 
-Marquee is published in the KMY repo. On the device:
+Marquee is published in my repo: `https://kerthmfy.github.io/repo/`
+
+On the device:
 
 1. Open Cydia and choose **Sources**.
 2. Tap **Edit**, then **Add**.
@@ -84,17 +85,16 @@ bump `control` for a real update. If a later step fails, it resets `repo/` to
 the commit it started from. `REPO_DIR=/path/to/repo` overrides the sibling
 location, and `--no-push` keeps everything local for review.
 
-## Known limitations.. but will try to implement and have a workaround
+## future implementations
 
-- No SimKL PRO/VIP features: rewatches, custom lists, and PRO-only data.
-- No scrobbling, playback sessions, or real-time progress.
-- No full season/episode browser; Marquee marks the next episode or the whole
-  title.
-- No calendar, DVD releases, trailers, comments, social features, or imports.
+- SimKL PRO/VIP features: rewatches, custom lists, and PRO-only data.
+- scrobbling, playback sessions, or real-time progress.
+-  calendar, DVD releases, trailers, comments, social features, or imports.
 - No push notifications, background sync, widgets, analytics, or crash
   reporting.
-- No Core Data or SQLite; persistence is file-backed JSON.
-- The app icon and launch image are temporary placeholders.
-- iPad layout can be checked only when iPad hardware is available; the
-  universal metrics and bundle metadata are covered by tests and package
-  inspection.
+-  app icon and launch image are temporary placeholders. **i ain't using AI for this man lmao**
+
+
+## AI disclosure
+
+roughly 70-80% of this project were AI assisted with my own supervision and carefully reviewing each of its output. If you're against AI-made tweaks/apps then this is not for you. These were just personal projects of mine that i'd love to share with y'all :)
