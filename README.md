@@ -1,6 +1,4 @@
-# Marquee - Simkl client for iOS 6
-
-Marquee is a standalone, native SimKL client for iOS 6.
+# Marquee - An unofficial Simkl client for iOS 6
 
 <p align="center">
   <img src="screenshots/ipad-launch.png" width="520"
