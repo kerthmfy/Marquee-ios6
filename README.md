@@ -96,7 +96,8 @@ location, and `--no-push` keeps everything local for review.
 -  calendar, DVD releases, trailers, comments, social features, or imports.
 - No push notifications, background sync, widgets, analytics, or crash
   reporting.
--  app icon and launch image are temporary placeholders. **i ain't using AI for this man lmao**
+- the app icon and launch images are branded and ship in `Marquee/Resources`
+  (`Icon*.png`, `Default*.png`).
 
 
 ## AI disclosure
