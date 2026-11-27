@@ -3,7 +3,7 @@
 Marquee is a standalone, native SimKL client for iOS 6.
 
 <p align="center">
-  <img src="screenshots/ipad-launch.png" width="520" alt="Marquee launch screen: an Admit One ticket on pinstripe paper">
+  <img src="screenshots/ipad-launch.png" width="520"
 </p>
 
 <p align="center">
